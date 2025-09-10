@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="lv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JP-Bilpleie</title>
+  <meta name="description" content="Auto JP-Bilpleie (PWA)">
+  <link rel="manifest" href="manifest.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="JP-Bilpleie" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <style>
+    body { font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif; margin:0; padding:16px; }
+    .card { max-width: 920px; margin: 0 auto; padding: 16px; border-radius: 16px; box-shadow: 0 6px 24px rgba(0,0,0,0.08); }
+    h1 { font-size: 22px; margin: 0 0 12px; }
+    h2 { font-size: 20px; font-weight: 700; color: #000; margin: 20px 0 10px; border-bottom: 2px solid #0a84ff; padding-bottom: 4px; }
+    label { font-weight: 700; color: #000; margin-top: 12px; display: block; }
+    input, textarea, select { width:100%; padding:10px; border-radius:10px; border:1px solid #ccc; font-size:16px; box-sizing:border-box; }
+    textarea { min-height:80px; }
+    button { margin-top:16px; padding:12px 16px; border:0; border-radius:10px; font-size:16px; cursor:pointer; }
+    .primary { background:#0a84ff; color:#fff; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; }
+    .row > div { flex:1; min-width:240px; }
+    .small { font-size:12px; color:#666; }
+    .msg { margin-top:12px; }
+    .hidden { display:none !important; }
+    .chips { display:flex; gap:8px; flex-wrap:wrap; }
+    .chip { border:1px solid #ccc; border-radius:20px; padding:6px 10px; display:flex; align-items:center; gap:8px; }
+    .thumbs { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .thumbs img { width:86px; height:86px; object-fit:cover; border-radius:10px; border:1px solid #ddd; }
+    .badge { font-size:12px; background:#eee; border-radius:6px; padding:2px 6px; }
+    .defect-wrap { border:1px dashed #bbb; border-radius:12px; padding:8px; overflow:hidden; }
+    .defect-canvas { width:100%; max-width:860px; aspect-ratio:16/9; background:#f8f8f8; border-radius:12px; position:relative; }
+    .defect-canvas svg { width:100%; height:100%; }
+    .pin { position:absolute; width:16px; height:16px; border-radius:50%; background:#ff3b30; transform:translate(-50%, -50%); border:2px solid #fff; box-shadow:0 0 0 2px rgba(0,0,0,0.15); }
+    .pin::after { content:attr(data-label); position:absolute; top:-22px; left:50%; transform:translateX(-50%); background:#000; color:#fff; font-size:10px; padding:2px 4px; border-radius:4px; white-space:nowrap; }
+    .defect-legend { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .legend-item { display:flex; align-items:center; gap:6px; }
+    .legend-dot { width:12px; height:12px; background:#ff3b30; border-radius:50%; border:1px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,0.2);}
+    .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:12px; }
+    /* — Darbu sadaļas "toggle cards" — */
+    .works-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 12px 0; }
+    .work-card { display: flex; align-items: center; justify-content: center; background: #f4f6f9; border: 2px solid #d0d7de; border-radius: 12px; padding: 14px; cursor: pointer; font-weight: 600; text-align: center; font-size: 15px; transition: all .2s ease; user-select: none; box-shadow: 0 2px 4px rgba(0,0,0,.05); }
+    .work-card input { display: none; }
+    .work-card:hover { border-color: #0a84ff; background: #eef4ff; }
+    .work-card input:checked + span { color: #fff; }
+    .work-card:has(input:checked) { background: #0a84ff; border-color: #0a84ff; color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-top">
+    <img src="icons/icon-192.png" alt="Logo" class="logo-img">
+  </div>
+    
+    <form id="form">
+      <!-- Client type + company -->
+      <h2>Klients</h2>
+      <div class="row">
+        <div>
+          <label>Klienta tips</label>
+          <select id="companyType" required>
+            <option value="business">Juridiska persona (firma)</option>
+            <option value="private">Privāts (bez firmas)</option>
+          </select>
+        </div>
+        <div id="businessBlock">
+          <label>Firma</label>
+          <select id="companySelect">
+            <option value="">— Izvēlies firmu —</option>
+            <option>Ferda</option>
+            <option>JP Bilpleie</option>
+            <option value="other">Cita…</option>
+          </select>
+          <div id="otherCompanyBlock" class="hidden" style="margin-top:8px">
+            <input id="otherCompany" placeholder="Citas firmas nosaukums">
+          </div>
+        </div>
+      </div>
+
+      <!-- Car details -->
+      <h2>Transportlīdzeklis</h2>
+      <div class="row">
+        <div>
+          <label>Jauna vai lietota mašīna</label>
+          <select id="carCondition" required>
+            <option value="new">Jauna</option>
+            <option value="used">Lietota</option>
+          </select>
+        </div>
+        <div>
+          <label>Datums</label>
+          <input id="date" type="date" required />
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label>Marka</label>
+          <input id="brand" placeholder="BMW / Toyota / VW" required />
+        </div>
+        <div>
+          <label>VIN Nr. / Reģ. Nr.</label>
+          <input id="vin" placeholder="WBA3A..." />
+        </div>
+        <div>
+          <label>Nobraukums (km)</label>
+          <input id="mileage" type="number" inputmode="numeric" min="0" step="1" placeholder="123456" />
+        </div>
+        <div>
+          <label>Modelis</label>
+          <input id="model" placeholder="320d / Golf 7" />
+        </div>
+      </div>
+
+      <label>Auto foto (var vairāki)</label>
+      <input id="photos" type="file" accept="image/*" multiple capture="environment" />
+      <div class="thumbs" id="thumbs"></div>
+      <p class="small">Attēli tiks saspiesti uz ~1600px garāko malu un nosūtīti payloadā kā JPEG base64. (Serverī vari glabāt un saistīt ar PowerOffice dokumentu.)</p>
+
+      <!-- Work checklist -->
+      <h2>Darbi</h2>
+<div class="works-grid">
+  <label class="work-card">
+    <input type="checkbox" class="work" value="demo_wax" /> <span>🕶 Demo vasks</span></label>
+  <label class="work-card"><input type="checkbox" class="work" value="full_shine" /><span>✨ Full Shine</span></label>
+  <label class="work-card"><input type="checkbox" class="work" value="ceramic" /><span>🛡 Keramic</span></label>
+  <label class="work-card"><input type="checkbox" class="work" value="interior_clean" /><span>🪑 Salona tīrīšana</span></label>
+  <label class="work-card"><input type="checkbox" class="work" value="engine_bay" /><span>⚙️ Motora telpa</span></label>
+</div>
+
+<label>Citi darbi / piezīmes</label>
+<textarea id="workNotes" placeholder="Papildus apraksts par paveikto"></textarea>
+
+      <!-- Defects -->
+      <h2>Defekti</h2>
+      <p class="small">Uzklikšķini uz shēmas, lai atzīmētu defektu vietu (tap uz korpusa). Dubultklikšķis/turēšana uz marķiera — lai noņemtu. Pievieno arī tekstu “Defekti (teksts)”.</p>
+      <div class="defect-wrap">
+        <div class="defect-canvas" id="defectCanvas">
+          <!-- Simple SVG silhouette (top view) -->
+          <svg viewBox="0 0 1000 560" preserveAspectRatio="xMidYMid meet">
+            <rect x="50" y="140" width="900" height="280" rx="60" ry="60" fill="#e9ecef" stroke="#cfd3d7" />
+            <rect x="150" y="160" width="700" height="240" rx="40" ry="40" fill="#f7f9fa" stroke="#cfd3d7"/>
+            <rect x="260" y="170" width="480" height="220" rx="12" ry="12" fill="#dee2e6" />
+            <circle cx="180" cy="400" r="40" fill="#d1d5db" />
+            <circle cx="820" cy="400" r="40" fill="#d1d5db" />
+            <circle cx="180" cy="160" r="40" fill="#d1d5db" />
+            <circle cx="820" cy="160" r="40" fill="#d1d5db" />
+          </svg>
+        </div>
+        <div class="defect-legend">
+          <div class="legend-item"><span class="legend-dot"></span> Marķieri: pieskaries shēmai</div>
+          <button type="button" id="clearPins">Notīrīt marķierus</button>
+        </div>
+      </div>
+      <label>Defekti (teksts)</label>
+      <textarea id="defects" placeholder="Apraksti defektus, ja tādi ir"></textarea>
+
+      <!-- Comments -->
+      <h2>Komentāri</h2>
+      <textarea id="comments" placeholder="Papildu informācija"></textarea>
+
+      <button type="submit" class="primary">Pabeigt</button>
+      <div class="msg" id="msg"></div>
+    </form>
+
+    <p class="small">Pēc “Pabeigt” dati tiks nosūtīti uz BACKEND_URL (skat. index.html), kur serveris veiks autentifikāciju un ierakstu PowerOffice.</p>
+  </div>
+
+<script>
+  const BACKEND_URL = "https://your-backend.example.com/api/submit"; // <- nomaini uz savu serveri
+
+  // --- Service worker ---
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => navigator.serviceWorker.register("service-worker.js"));
+  }
+
+  // --- Elements ---
+  const form = document.getElementById("form");
+  const msg = document.getElementById("msg");
+  const dateInput = document.getElementById("date");
+  const companyTypeEl = document.getElementById("companyType");
+  const businessBlock = document.getElementById("businessBlock");
+  const companySelect = document.getElementById("companySelect");
+  const otherCompanyBlock = document.getElementById("otherCompanyBlock");
+  const otherCompany = document.getElementById("otherCompany");
+
+  const carConditionEl = document.getElementById("carCondition");
+  const brandEl = document.getElementById("brand");
+  const vinEl = document.getElementById("vin");
+  const mileageEl = document.getElementById("mileage");
+  const modelEl = document.getElementById("model");
+
+  const photosEl = document.getElementById("photos");
+  const thumbsEl = document.getElementById("thumbs");
+
+  const defectCanvas = document.getElementById("defectCanvas");
+  const clearPinsBtn = document.getElementById("clearPins");
+
+  // --- Defaults ---
+  if (!dateInput.value) {
+    const today = new Date().toISOString().slice(0,10);
+    dateInput.value = today;
+  }
+
+  // --- Company UI ---
+  function refreshCompanyUI() {
+    const type = companyTypeEl.value;
+    if (type === "private") {
+      businessBlock.classList.add("hidden");
+    } else {
+      businessBlock.classList.remove("hidden");
+    }
+    toggleOther();
+  }
+  function toggleOther() {
+    const isOther = companySelect.value === "other";
+    otherCompanyBlock.classList.toggle("hidden", !isOther);
+  }
+  companyTypeEl.addEventListener("change", refreshCompanyUI);
+  companySelect.addEventListener("change", toggleOther);
+  refreshCompanyUI();
+
+  // --- Photo handling: compress to ~1600px max side ---
+  let photoData = []; // {name, type, dataUrl(width<=1600)}
+  photosEl.addEventListener("change", async (e) => {
+    thumbsEl.innerHTML = "";
+    photoData = [];
+    const files = Array.from(e.target.files || []);
+    for (const f of files) {
+      const dataUrl = await readFileAsDataURL(f);
+      const compressed = await downscaleImage(dataUrl, 1600, 0.8);
+      photoData.push({ name: f.name, type: "image/jpeg", dataUrl: compressed });
+      const img = document.createElement("img");
+      img.src = compressed;
+      thumbsEl.appendChild(img);
+    }
+  });
+
+  function readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+  function downscaleImage(dataUrl, maxSize, quality=0.85) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const ratio = Math.max(img.width, img.height) / maxSize;
+        const w = ratio > 1 ? Math.round(img.width / ratio) : img.width;
+        const h = ratio > 1 ? Math.round(img.height / ratio) : img.height;
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.src = dataUrl;
+    });
+  }
+
+  // --- Defect pins on SVG area (relative coords 0..1) ---
+  let pins = []; // {xRel,yRel,label}
+  defectCanvas.addEventListener("click", (e) => {
+    // ignore if clicked on an existing pin (will be handled by dblclick)
+    const rect = defectCanvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const xRel = x / rect.width;
+    const yRel = y / rect.height;
+    const label = prompt("Defekta apzīmējums (piem., skrāpējums, iespiedums):", "def.");
+    if (label === null) return; // cancelled
+    pins.push({ xRel, yRel, label: label || "def." });
+    renderPins();
+  });
+
+  function renderPins() {
+    // Remove existing
+    defectCanvas.querySelectorAll(".pin").forEach(el => el.remove());
+    const rect = defectCanvas.getBoundingClientRect();
+    for (const p of pins) {
+      const pin = document.createElement("div");
+      pin.className = "pin";
+      pin.style.left = (p.xRel * 100) + "%";
+      pin.style.top  = (p.yRel * 100) + "%";
+      pin.dataset.label = p.label;
+      pin.title = p.label + " (dubultklikšķis, lai noņemtu)";
+      pin.addEventListener("dblclick", () => { pins = pins.filter(pp => pp !== p); renderPins(); });
+      defectCanvas.appendChild(pin);
+    }
+  }
+
+  clearPinsBtn.addEventListener("click", () => { pins = []; renderPins(); });
+
+  // --- Submit ---
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    msg.textContent = "Sūta...";
+
+    // Company info
+    const companyType = companyTypeEl.value; // business | private
+    let companyName = "Privāts";
+    if (companyType === "business") {
+      if (companySelect.value === "other") companyName = (otherCompany.value || "").trim();
+      else companyName = (companySelect.value || "").trim();
+      if (!companyName) {
+        msg.textContent = "Lūdzu izvēlies firmu vai ievadi nosaukumu.";
+        return;
+      }
+    }
+
+    // Works checklist
+    const works = Array.from(document.querySelectorAll(".work"))
+      .filter(cb => cb.checked)
+      .map(cb => cb.value);
+
+    // Build payload
+    const payload = {
+      companyType,
+      companyName,
+      date: dateInput.value,
+      car: {
+        condition: carConditionEl.value, // new | used
+        brand: brandEl.value.trim(),
+        model: modelEl.value.trim(),
+        vinOrReg: vinEl.value.trim(),
+        mileage: mileageEl.value ? parseInt(mileageEl.value, 10) : null
+      },
+      works,
+      workNotes: document.getElementById("workNotes").value.trim(),
+      defectsText: document.getElementById("defects").value.trim(),
+      defectPins: pins, // [{xRel,yRel,label}]
+      comments: document.getElementById("comments").value.trim(),
+      photos: photoData // [{name,type,dataUrl}]
+    };
+
+    try {
+      const res = await fetch(BACKEND_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) throw new Error("Serveris atgrieza " + res.status);
+      msg.textContent = "Nosūtīts!";
+      form.reset();
+      pins = []; renderPins();
+      document.getElementById("thumbs").innerHTML = "";
+      const today = new Date().toISOString().slice(0,10);
+      dateInput.value = today;
+      refreshCompanyUI();
+    } catch (err) {
+      msg.textContent = "Kļūda: " + err.message;
+    }
+  });
+</script>
+</body>
+</html>
