@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JP-Bilpleie</title>
+
+  <!-- Stabils PDF: html2canvas + jsPDF -->
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+  <style>
+    body { font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif; margin:0; padding:16px; background:#f7f7fb; }
+    .card { max-width: 980px; margin: 0 auto; padding: 16px; border-radius: 16px; background:#fff; box-shadow: 0 6px 24px rgba(0,0,0,0.08); }
+    .logo-top { text-align:center; margin-bottom:12px; }
+    .logo-img { width:64px; height:64px; border-radius:12px; object-fit:contain; }
+    h1 { font-size: 22px; margin: 0 0 12px; }
+    h2 { font-size: 20px; font-weight:700; color:#000; margin:20px 0 10px; border-bottom:2px solid #0a84ff; padding-bottom:4px; }
+    label { display:block; font-weight:700; margin-top:12px; color:#000; }
+    input, textarea, select { width:100%; padding:10px; border-radius:10px; border:1px solid #ccc; font-size:16px; box-sizing:border-box; background:#fff; }
+    textarea { min-height:80px; }
+    button { margin-top:16px; padding:12px 16px; border:0; border-radius:10px; font-size:16px; cursor:pointer; }
+    .primary { background:#0a84ff; color:#fff; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; }
+    .row > div { flex:1; min-width:240px; }
+    .small { font-size:12px; color:#666; }
+    .msg { margin-top:12px; }
+    .hidden { display:none !important; }
+    .thumbs { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .thumbs img { width:86px; height:86px; object-fit:cover; border-radius:10px; border:1px solid #ddd; }
+
+    .works-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 12px 0; }
+    .work-card { display:flex; align-items:center; justify-content:center; background:#f4f6f9; border:2px solid #d0d7de; border-radius:12px; padding:14px; font-weight:600; text-align:center; font-size:15px; user-select:none; }
+    .work-card input { display:none; }
+    .work-card:has(input:checked) { background:#0a84ff; border-color:#0a84ff; color:#fff; }
+
+    /* --- Defektu shēma --- */
+    .defect-wrap2 { border:1px dashed #bbb; border-radius:12px; padding:10px; background:#fff; }
+    .defect-toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin-bottom:8px; }
+
+    /* Konteiners – SAMAZINĀTS līdz 60% platuma */
+    .defect-canvas {
+      width: 60%;
+      max-width: 350px;
+      aspect-ratio: 2 / 3; /* 768 x 1152 */
+      background: #ffffff;
+      border-radius: 12px;
+      position: relative;
+      margin: 0 auto;
+      overflow: hidden;
+    }
+    /* Attēls ieņem 100% no konteinera (lai marķieru koordinātas atbilst) */
+    .defect-canvas img.plan-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      user-select: none;
+      -webkit-user-drag: none;
+      pointer-events: none; /* klikšķi iet marķieriem */
+    }
+    @media (max-width: 350px){ .defect-canvas { width: 100%; } }
+
+    .pin { position:absolute; width:18px; height:18px; border-radius:50%; transform:translate(-50%,-50%); border:2px solid #fff; box-shadow:0 0 0 2px rgba(0,0,0,.15); cursor:grab; }
+    .pin:active { cursor:grabbing; }
+    .pin::after { content:attr(data-label); position:absolute; top:-22px; left:50%; transform:translateX(-50%); background:#111; color:#fff; font-size:10px; padding:2px 4px; border-radius:4px; white-space:nowrap; }
+    .pin[data-type="scratch"]{ background:#ef4444; }
+
+    /* PDF kopsavilkums */
+    .print-wrap { width: 794px; color:#111; }
+    .pw-header { display:flex; justify-content:space-between; align-items:center; border-bottom:3px solid #0a84ff; padding-bottom:8px; margin-bottom:12px; }
+    .pw-title { font-size:22px; font-weight:800; }
+    .pw-doc { text-align:right; font-size:12px; line-height:1.4; }
+    .kv { width:100%; border-collapse: collapse; }
+    .kv th, .kv td { border:1px solid #d1d5db; padding:8px 10px; font-size:13px; vertical-align:top; }
+    .kv th { background:#f3f4f6; text-align:left; width:32%; }
+    .sec-title { font-size:14px; font-weight:800; margin:14px 0 6px; text-transform:uppercase; letter-spacing:.4px; color:#0f172a; }
+    .text-box { min-height:44px; padding:8px; border:1px solid #d1d5db; border-radius:8px; background:#fff; font-size:13px; white-space:pre-wrap; }
+    .chips { display:flex; flex-wrap:wrap; gap:8px; }
+    .chip { border:1px solid #c7cbd1; border-radius:999px; padding:4px 10px; font-size:12px; background:#f8fafc; }
+
+    /* Foto bloks PDF’ā (pēc “Komentāri”) */
+    .photos-block { margin-top:8px; }
+    .photo-item { margin-bottom:10px; page-break-inside: avoid; }
+    .photo-item img { width:70%; border:1px solid #e5e7eb; border-radius:8px; display:block; }
+    .photo-cap { font-size:12px; color:#475569; margin-top:4px; }
+  </style>
+</head>
+<body>
+  <div class="card" id="formCard">
+    <div class="logo-top">
+      <img src="icons/icon-192.png" alt="Logo" class="logo-img">
+    </div>
+
+    <form id="form">
+      <h2>Kunde</h2>
+      <div class="row">
+        <div>
+          <label>Kundetype</label>
+          <select id="companyType" required>
+            <option value="business">Juridisk person (bedrift)</option>
+            <option value="private">Privat (uten bedrift)</option>
+          </select>
+        </div>
+        <div id="businessBlock">
+          <label>Bedrift</label>
+          <select id="companySelect">
+            <option value="" selected disabled>— Velg bedrift —</option>
+            <option value="ferda">Ferda</option>
+            <option value="motoforum">Motoforum</option>
+            <option value="other">Annen…</option>
+          </select>
+          <div id="otherCompanyBlock" class="hidden" style="margin-top:8px">
+            <input id="otherCompany" placeholder="Annet bedriftsnavn">
+          </div>
+        </div>
+      </div>
+
+      <h2>Kjøretøy</h2>
+      <div class="row">
+        <div>
+          <label>Ny eller brukt bil</label>
+          <select id="carCondition" required>
+            <option value="new">Ny</option>
+            <option value="used">Brukt</option>
+          </select>
+        </div>
+        <div>
+          <label>Dato</label>
+          <input id="date" type="date" required />
+        </div>
+      </div>
+
+      <div class="row">
+        <div><label>Merke</label><input id="brand" required /></div>
+        <div><label>Modell</label><input id="model" /></div>
+        <div><label>VIN / Reg.nr.</label><input id="vin" required /></div>
+        <div><label>Kilometerstand (km)</label><input id="mileage" type="number" inputmode="numeric" min="0" step="1" /></div>
+      </div>
+
+      <label>Bilder av bilen</label>
+      <input id="photos" type="file" accept="image/*" multiple capture="environment" required />
+      <div class="thumbs" id="thumbs"></div>
+
+      <h2>Arbeid</h2>
+      <div class="works-grid">
+        <label class="work-card"><input type="checkbox" class="work" value="innvendig_vask" /><span>🧽 Innvendig vask</span></label>
+        <label class="work-card"><input type="checkbox" class="work" value="utvendig_vask_voks" /><span>🚿✨ Utvendig vask + voks</span></label>
+        <label class="work-card"><input type="checkbox" class="work" value="innvendig_utvendig_vask_voks" /><span>🧽🚿✨ Innvendig/utvendig vask + voks</span></label>
+
+        <label class="work-card"><input type="checkbox" class="work" value="polering1_voks" /><span>1️⃣🌀 1-stegs polering + voks</span></label>
+        <label class="work-card"><input type="checkbox" class="work" value="polering2_voks" /><span>2️⃣🌀 2-stegs polering + voks</span></label>
+
+        <label class="work-card"><input type="checkbox" class="work" value="keramisk_coating" /><span>🛡 Keramisk coating</span></label>
+        <label class="work-card"><input type="checkbox" class="work" value="fullshine_pakke" /><span>✨ Fullshine pakke</span></label>
+
+        <label class="work-card"><input type="checkbox" class="work" value="express_utvendig_vask" /><span>⚡🚿 Express utvendig vask</span></label>
+        <label class="work-card"><input type="checkbox" class="work" value="express_innvendig_vask" /><span>⚡🧽 Express innvendig vask</span></label>
+      </div>
+
+      <label>Andre arbeider / merknader</label>
+      <textarea id="workNotes" placeholder="Tilleggsbeskrivelse av utført arbeid"></textarea>
+
+      <h2>Skader</h2>
+      <div class="defect-wrap2">
+        <div class="defect-toolbar" style="justify-content:space-between">
+          <button type="button" id="clearPins">Tøm markeringer</button>
+        </div>
+        <!-- Portrettskjema -->
+        <div class="defect-canvas" id="defectCanvas"><!-- bilde/SVG lastes av JS --></div>
+      </div>
+
+      <label>Skader (tekst)</label>
+      <textarea id="defects" placeholder="Beskriv skader hvis aktuelt"></textarea>
+
+      <h2>Kommentarer</h2>
+      <textarea id="comments" placeholder="Tilleggsinformasjon"></textarea>
+
+      <button type="submit" class="primary">Fullfør</button>
+      <div class="msg" id="msg"></div>
+    </form>
+  </div>
+
+<script>
+  // === Google Apps Script Web App /exec URL ===
+  const DRIVE_URL = "https://script.google.com/macros/s/AKfycbwiuDPcIHxWA1vtahW6mu_vq1NuQxv2mkbaeWGEmpV1-CEsZK8t6Gq9PYNbd988bv1L/exec";
+  const PREVIEW_LOCAL = false;
+
+  // ---- UI / foto ----
+  const form = document.getElementById("form");
+  const msg = document.getElementById("msg");
+  const companyTypeEl = document.getElementById("companyType");
+  const businessBlock = document.getElementById("businessBlock");
+  const companySelect = document.getElementById("companySelect");
+  const otherCompanyBlock = document.getElementById("otherCompanyBlock");
+  const otherCompany = document.getElementById("otherCompany");
+  const dateInput = document.getElementById("date");
+  const brandEl = document.getElementById("brand");
+  const vinEl = document.getElementById("vin");
+  const mileageEl = document.getElementById("mileage");
+  const modelEl = document.getElementById("model");
+  const photosEl = document.getElementById("photos");
+  const thumbsEl = document.getElementById("thumbs");
+
+  if (!dateInput.value) { dateInput.value = new Date().toISOString().slice(0,10); }
+  function refreshCompanyUI() {
+  const isBusiness = (companyTypeEl.value === 'business');
+  const isOther    = isBusiness && (companySelect.value === 'other');
+
+  // rādīt/slēpt blokus
+  businessBlock.classList.toggle('hidden', !isBusiness);
+  otherCompanyBlock.classList.toggle('hidden', !isOther);
+
+  // required tikai vajadzīgajos gadījumos
+  companySelect.required = isBusiness;
+  otherCompany.required  = isOther;
+
+  // ja pārslēdzas uz "Privat" — notīrām vērtības
+  if (!isBusiness) {
+    companySelect.value = '';
+    otherCompany.value  = '';
+  }
+}
+
+// skaidras kļūdu ziņas tikai bedrift laukiem
+companySelect.addEventListener('invalid', e => e.target.setCustomValidity('Velg bedrift'));
+companySelect.addEventListener('input',  e => e.target.setCustomValidity(''));
+otherCompany.addEventListener('invalid', e => e.target.setCustomValidity('Skriv inn bedriftsnavn'));
+otherCompany.addEventListener('input',  e => e.target.setCustomValidity(''));
+
+// notikumi
+companyTypeEl.addEventListener('change', refreshCompanyUI);
+companySelect.addEventListener('change', refreshCompanyUI);
+refreshCompanyUI();
+
+
+  let photoData = [];
+  photosEl.addEventListener("change", async (e) => {
+    thumbsEl.innerHTML = ""; photoData = [];
+    const files = Array.from(e.target.files || []);
+    for (const f of files) {
+      const dataUrl = await readFileAsDataURL(f);
+      const compressed = await downscaleImage(dataUrl, 1600, 0.9);
+      photoData.push({ name: f.name, type: "image/jpeg", dataUrl: compressed });
+      const img = document.createElement("img"); img.src = compressed; thumbsEl.appendChild(img);
+    }
+  });
+  function readFileAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); }); }
+  function downscaleImage(dataUrl, maxSize, quality=0.9){ return new Promise((resolve)=>{ const img=new Image(); img.onload=()=>{ const ratio=Math.max(img.width,img.height)/maxSize; const w=ratio>1?Math.round(img.width/ratio):img.width; const h=ratio>1?Math.round(img.height/ratio):img.height; const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); resolve(c.toDataURL('image/jpeg',quality)); }; img.src=dataUrl; }); }
+
+  // ---- Defektu shēma: viens skats, velkami marķieri ----
+  const defectCanvasEl = document.getElementById('defectCanvas');
+  const clearPinsBtn = document.getElementById('clearPins');
+
+  let activeType = 'scratch'; // saglabājam tipu, ja vēlāk pievienosi tipus/krāsas
+  let pins = [];
+
+  clearPinsBtn.addEventListener('click', () => { pins = []; renderPins(); });
+
+  function loadPlan(){
+    defectCanvasEl.innerHTML = getPlanSvg();
+    renderPins();
+  }
+  loadPlan();
+
+  defectCanvasEl.addEventListener('click', (e) => {
+    if (e.target.classList.contains('pin')) return;
+    const r = defectCanvasEl.getBoundingClientRect();
+    const xRel = (e.clientX - r.left) / r.width;
+    const yRel = (e.clientY - r.top) / r.height;
+    const label = prompt("Skademerknad (valgfritt):", "");
+    pins.push({ xRel, yRel, label: label||"", type: activeType });
+    renderPins();
+  });
+
+  function renderPins(){
+    defectCanvasEl.querySelectorAll('.pin').forEach(n => n.remove());
+    for (const p of pins) {
+      const pin = document.createElement('div');
+      pin.className = 'pin';
+      pin.dataset.type = p.type;
+      pin.dataset.label = p.label;
+      pin.style.left = (p.xRel*100)+'%';
+      pin.style.top  = (p.yRel*100)+'%';
+      pin.title = (p.label ? p.label + " • " : "") + "Dra for å flytte, dobbeltklikk for å slette";
+
+      pin.addEventListener('pointerdown', (ev) => {
+        ev.preventDefault();
+        const start = defectCanvasEl.getBoundingClientRect();
+        const sx = ev.clientX, sy = ev.clientY;
+        const ox = p.xRel, oy = p.yRel;
+        function move(ev2){
+          p.xRel = Math.min(0.995, Math.max(0.005, ox + (ev2.clientX - sx)/start.width));
+          p.yRel = Math.min(0.995, Math.max(0.005, oy + (ev2.clientY - sy)/start.height));
+          pin.style.left = (p.xRel*100)+'%';
+          pin.style.top  = (p.yRel*100)+'%';
+        }
+        function up(){ window.removeEventListener('pointermove',move); window.removeEventListener('pointerup',up); }
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+      });
+
+      pin.addEventListener('dblclick', () => {
+        const idx = pins.indexOf(p);
+        if (idx > -1) { pins.splice(idx,1); renderPins(); }
+      });
+
+      defectCanvasEl.appendChild(pin);
+    }
+  }
+
+  // Shēma kā bilde (precīzs tavs zīmējums)
+  function getPlanSvg(){
+    return `<img src="icons/plan.png" alt="Bilskisse (topp)" class="plan-img">`;
+  }
+
+  // ---- Datu sagatavošana ----
+  function buildEntry(){
+    const companyType = companyTypeEl.value;
+    let companyCode = "private";
+    let companyName = "Privat";
+    if (companyType === "business") {
+      companyCode = companySelect.value || "other";
+      companyName = companySelect.value === "other" ? (otherCompany.value || "").trim() : (companySelect.options[companySelect.selectedIndex]?.text || "").trim();
+      if (!companyName) throw new Error("Velg bedrift eller skriv inn navn.");
+    }
+    const works = Array.from(document.querySelectorAll(".work:checked")).map(cb => cb.value);
+    return {
+      date: dateInput.value,
+      companyType, companyCode, companyName,
+      car: { condition: document.getElementById("carCondition").value, brand: brandEl.value.trim(), model: modelEl.value.trim(), vinOrReg: vinEl.value.trim(), mileage: mileageEl.value || "" },
+      works,
+      workNotes: document.getElementById("workNotes").value.trim(),
+      defectsText: document.getElementById("defects").value.trim(),
+      comments: document.getElementById("comments").value.trim(),
+      photos: photoData
+    };
+  }
+
+  const WORK_NAMES = {
+    innvendig_vask: "Innvendig vask",
+    utvendig_vask_voks: "Utvendig vask + voks",
+    innvendig_utvendig_vask_voks: "Innvendig/utvendig vask + voks",
+    polering1_voks: "1-stegs polering + voks",
+    polering2_voks: "2-stegs polering + voks",
+    keramisk_coating: "Keramisk coating",
+    fullshine_pakke: "Fullshine pakke",
+    express_utvendig_vask: "Express utvendig vask",
+    express_innvendig_vask: "Express innvendig vask"
+  };
+
+  // ---- PDF: kopsavilkums + Foto pēc “Komentāri” ----
+  async function makePdfDataUrlFromForm(entry) {
+    // Defektu shēma -> bilde
+    let defectImgData = '';
+    try {
+      const c = await html2canvas(document.getElementById('defectCanvas'), { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+      defectImgData = c.toDataURL('image/png');
+    } catch {}
+
+    const wrap = document.createElement('div');
+    wrap.className = 'print-wrap';
+    wrap.innerHTML = `
+      <div class="pw-header">
+        <div style="display:flex;align-items:center;gap:10px">
+          <img src="icons/icon-192.png" alt="Ikon" width="28" height="28" style="border-radius:6px" />
+          <div class="pw-title">JP-Bilpleie</div>
+        </div>
+        <div class="pw-doc"><b>Dato:</b> ${entry.date||''}</div>
+      </div>
+
+      <div class="sec-title">Kunde</div>
+      <table class="kv">
+        <tr><th>Type</th><td>${entry.companyType==='business'?'Juridisk person (bedrift)':'Privat'}</td></tr>
+        <tr><th>Bedrift</th><td>${entry.companyType==='business' ? (entry.companyName||'') : '—'}</td></tr>
+      </table>
+
+      <div class="sec-title">Kjøretøy</div>
+      <table class="kv">
+        <tr><th>Tilstand</th><td>${entry.car.condition==='new'?'Ny':'Brukt'}</td></tr>
+        <tr><th>Merke / Modell</th><td>${(entry.car.brand||'')+' '+(entry.car.model||'')}</td></tr>
+        <tr><th>VIN / Reg.nr.</th><td>${entry.car.vinOrReg||''}</td></tr>
+        <tr><th>Kilometerstand (km)</th><td>${entry.car.mileage||''}</td></tr>
+      </table>
+
+      <div class="sec-title">Utført arbeid</div>
+      <div class="chips" id="worksChips"></div>
+      <div style="height:6px"></div>
+      <div class="text-box">${(entry.workNotes||'').replace(/</g,'&lt;')}</div>
+
+      <div class="sec-title">Skader</div>
+      ${defectImgData ? `<img src="${defectImgData}" style="width:50%;border:1px solid #e5e7eb;border-radius:8px">` : '<div class="text-box">—</div>'}
+      <div style="height:6px"></div>
+      <div class="text-box">${(entry.defectsText||'').replace(/</g,'&lt;')}</div>
+
+      <div class="sec-title">Kommentarer</div>
+      <div class="text-box">${(entry.comments||'').replace(/</g,'&lt;')}</div>
+
+      <div class="sec-title">Bilder</div>
+      <div class="photos-block" id="photosBlock"></div>
+    `;
+
+    // Darbi kā žetoni
+    const chips = wrap.querySelector('#worksChips');
+    (entry.works||[]).forEach(w => {
+      const s = document.createElement('span');
+      s.className = 'chip';
+      s.textContent = WORK_NAMES[w] || w;
+      chips.appendChild(s);
+    });
+
+    // Foto (katra pilnā platumā)
+    const pb = wrap.querySelector('#photosBlock');
+    (entry.photos||[]).forEach((p, i) => {
+      const item = document.createElement('div');
+      item.className = 'photo-item';
+      item.innerHTML = `<img src="${p.dataUrl}" alt="Foto ${i+1}"><div class="photo-cap">Foto ${i+1}</div>`;
+      pb.appendChild(item);
+    });
+
+    // Slēpti ieliekam DOM un “nofotografējam”
+    const holder = document.createElement('div');
+    holder.style.position = 'fixed'; holder.style.left = '-10000px'; holder.style.top = '0';
+    holder.appendChild(wrap);
+    document.body.appendChild(holder);
+
+    const canvas = await html2canvas(wrap, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+
+    // jsPDF (vairāklapu)
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p','mm','a4');
+    const pageWidth  = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+
+    const imgData   = canvas.toDataURL('image/jpeg', 0.95);
+    const imgWidth  = pageWidth;
+    const imgHeight = canvas.height * imgWidth / canvas.width;
+
+    let heightLeft = imgHeight, position = 0;
+    pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+    while (heightLeft > 0) {
+      pdf.addPage();
+      position = heightLeft - imgHeight;
+      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    holder.remove();
+    return pdf.output('datauristring');
+  }
+
+  // Sūtīt uz Drive
+  async function sendPdfDataUriToDrive(entry, dataUri){
+  if (!DRIVE_URL) throw new Error('Har ikke DRIVE_URL');
+
+  // Etiķete no markas + modeļa (ja modelis nav, tad tikai marka)
+  const brandLabel = [entry.car.brand, entry.car.model].filter(Boolean).join('_') || 'uten_merke';
+
+  const fileName = `contract_${brandLabel}_${entry.date||''}.pdf`.replace(/\s+/g,'_');
+  const base64 = (dataUri.split('base64,')[1] || '');
+
+  await fetch(DRIVE_URL, {
+    method: "POST",
+    mode: "no-cors",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({
+      fileName,
+      pdfBase64: base64,
+      companyCode: entry.companyCode,
+      companyName: entry.companyName,
+      date: entry.date,
+      brand: entry.car.brand || "",
+      model: entry.car.model || ""
+    })
+  });
+
+  return { ok:true, hintFolder: `JP-Bilplei APP/${(entry.companyCode||'other')}/${(entry.date||'')}_${brandLabel}` };
+}
+
+
+  // Submit
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    refreshCompanyUI();                 // atjauno required atkarībā no Kundetype
+  if (!form.checkValidity()) {        // ja "Bedrift" (vai "Annen…") nav aizpildīts
+    form.reportValidity();            // parādi pārlūka brīdinājumu
+    return;                           // neiet tālāk
+  }
+    try {
+      msg.textContent = "Lager PDF og sender til Drive…";
+      const entry = buildEntry();
+      const dataUri = await makePdfDataUrlFromForm(entry);
+      if (PREVIEW_LOCAL) window.open(dataUri, "_blank");
+      const out = await sendPdfDataUriToDrive(entry, dataUri);
+      msg.innerHTML = `Sendt! Finn PDF i: <b>${out.hintFolder}</b>`;
+      form.reset(); pins = []; thumbsEl.innerHTML = "";
+      dateInput.value = new Date().toISOString().slice(0,10);
+      refreshCompanyUI();
+    } catch (err) {
+      console.error(err);
+      msg.textContent = err.message || "Feil ved sending av PDF.";
+    }
+  });
+</script>
+</body>
+</html>
