@@ -480,36 +480,127 @@
     pop.classList.remove('show');
     setTimeout(()=>bg.classList.remove('show'), 180);
   }
+// ---- Simple IndexedDB Outbox ----
+const DB_NAME = 'jpbilpleie';
+const STORE   = 'outbox';
+
+function idbOpen(){
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE)) {
+        db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
+      }
+    };
+    req.onsuccess = () => res(req.result);
+    req.onerror   = () => rej(req.error);
+  });
+}
+function idbAdd(item){
+  return idbOpen().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).add(item).onsuccess = e => res(e.target.result);
+    tx.oncomplete = () => db.close();
+    tx.onerror    = () => rej(tx.error);
+  }));
+}
+function idbAll(){
+  return idbOpen().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readonly');
+    tx.objectStore(STORE).getAll().onsuccess = e => res(e.target.result || []);
+    tx.oncomplete = () => db.close();
+    tx.onerror    = () => rej(tx.error);
+  }));
+}
+function idbDel(id){
+  return idbOpen().then(db => new Promise((res, rej) => {
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).delete(id).onsuccess = () => res();
+    tx.oncomplete = () => db.close();
+    tx.onerror    = () => rej(tx.error);
+  }));
+}
+
+// Try to send one item; treat fetch resolve as success (no-cors)
+async function uploadOne(entry, dataUri){
+  try {
+    await sendPdfDataUriToDrive(entry, dataUri);
+    return true;                 // resolved = assume success
+  } catch (e) {
+    return false;                // rejected (offline / network)
+  }
+}
+
+// Flush all queued items
+async function flushQueue(){
+  const items = await idbAll();
+  if (!items.length) return {sent:0,left:0};
+  let sent = 0;
+  for (const it of items){
+    const ok = await uploadOne(it.entry, it.dataUri);
+    if (ok) { await idbDel(it.id); sent++; }
+  }
+  const left = (await idbAll()).length;
+  return {sent, left};
+}
+
+// Queue current PDF (and try send immediately if online)
+async function queueOrSend(entry, dataUri){
+  if (navigator.onLine) {
+    const okNow = await uploadOne(entry, dataUri);
+    if (okNow) return { mode:'sent' };
+    // fall through to queue on failure
+  }
+  await idbAdd({ entry, dataUri, addedAt: Date.now() });
+  // schedule a flush when back online
+  // (also handled by window 'online' below)
+  return { mode:'queued' };
+}
+
+// Auto flush on page load & when back online
+window.addEventListener('online', () => { flushQueue(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && navigator.onLine) flushQueue();
+});
 
   // Submit
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    refreshCompanyUI();
-    if (!form.checkValidity()) { form.reportValidity(); return; }
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  refreshCompanyUI();
+  if (!form.checkValidity()) { form.reportValidity(); return; }
 
-    try {
-      msg.textContent = "Samle inn data…";
-      const entry = buildEntry();
-      const dataUri = await makePdfDataUrlFromForm(entry);
-      if (PREVIEW_LOCAL) window.open(dataUri, "_blank");
-      const out = await sendPdfDataUriToDrive(entry, dataUri);
+  try {
+    msg.textContent = "Samler data…";
+    const entry = buildEntry();
+    const dataUri = await makePdfDataUrlFromForm(entry);
 
-      msg.textContent = "";
+    // Always “send”: upload if possible, else queue for later
+    const result = await queueOrSend(entry, dataUri);
+
+    msg.textContent = "";
+
+    if (result.mode === 'sent') {
       showCenterSuccess('Sendt!');
-
-      // reset tikai pēc OK
-      const okBtn = document.getElementById('okSuccess');
-      okBtn.onclick = () => {
-        hideCenterSuccess();
-        form.reset(); pins = []; thumbsEl.innerHTML = "";
-        dateInput.value = new Date().toISOString().slice(0,10);
-        refreshCompanyUI();
-      };
-    } catch (err) {
-      console.error(err);
-      msg.textContent = err.message || "Feil ved sending";
+    } else {
+      showCenterSuccess('Lagret offline', 'Blir sendt automatisk når du er på nett');
     }
-  });
+
+    // reset etter OK
+    const okBtn = document.getElementById('okSuccess');
+    okBtn.onclick = () => {
+      hideCenterSuccess();
+      form.reset(); pins = []; thumbsEl.innerHTML = "";
+      dateInput.value = new Date().toISOString().slice(0,10);
+      refreshCompanyUI();
+      // Optional: try a flush after reset if online
+      if (navigator.onLine) flushQueue();
+    };
+  } catch (err) {
+    console.error(err);
+    msg.textContent = err.message || "Feil ved sending";
+  }
+});
 </script>
 
 <!-- Centered success popup (pa vidu ekrānam) -->
