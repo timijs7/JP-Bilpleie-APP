@@ -4,11 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>JP-Bilpleie</title>
-  <link rel="manifest" href="manifest.json" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="apple-mobile-web-app-title" content="JP-Bilpleie" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+
   <!-- PDF: html2canvas + jsPDF -->
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
@@ -30,64 +26,23 @@
     .small { font-size:12px; color:#666; }
     .msg { margin-top:12px; }
     .hidden { display:none !important; }
-    .thumbs{
-  display:grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap:10px; margin-top:8px;
-}
-.thumb{
-  position:relative; width:100%; aspect-ratio:1/1;
-  border-radius:12px; overflow:hidden;
-  border:1px solid #e5e7eb; background:#f8fafc;
-}
-.thumb img{ width:100%; height:100%; object-fit:cover; display:block; cursor:pointer; }
-.thumb .thumb-del{
-  position:absolute; 
-  top:1px;                 /* sit nicely inside the corner */
-  right:4px;
-  width:28px;              /* smaller circle */
-  height:28px;
-  border:0;
-  border-radius:50%;
-  background:rgba(17,24,39,.9);
-  color:#fff;
-  display:flex;            /* perfect centering */
-  align-items:center;
-  justify-content:center;
-  font-size:12px;          /* smaller “×” */
-  line-height:1;
-  padding:0;
-  cursor:pointer;
-}
-.thumb .thumb-del:hover{ background:#ef4444; }
+    .thumbs{display:grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap:10px; margin-top:8px;}
+    .thumb{position:relative; width:100%; aspect-ratio:1/1; border-radius:12px; overflow:hidden; border:1px solid #e5e7eb; background:#f8fafc;}
+    .thumb img{ width:100%; height:100%; object-fit:cover; display:block; cursor:pointer; }
+    .thumb .thumb-del{position:absolute; top:1px; right:4px; width:28px; height:28px; border:0; border-radius:50%; background:rgba(17,24,39,.9); color:#fff; display:flex; align-items:center;justify-content:center;font-size:12px; line-height:1; padding:0; cursor:pointer;}
+    .thumb .thumb-del:hover{ background:#ef4444; }
 
-    .works-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 12px 0; }
-    .work-card { display:flex; align-items:center; justify-content:center; background:#f4f6f9; border:2px solid #d0d7de; border-radius:12px; padding:14px; font-weight:600; text-align:center; font-size:15px; user-select:none; }
-    .work-card input { display:none; }
-    .work-card:has(input:checked) { background:#0a84ff; border-color:#0a84ff; color:#fff; }
+    .work-table{width:100%;border-collapse:collapse;font-size:13px}
+    .work-table th,.work-table td{border:1px solid #d1d5db;padding:8px 10px;vertical-align:top}
+    .work-table th{background:#f3f4f6;text-align:left}
+    .badge-yes{background:#dcfce7;color:#166534;padding:2px 8px;border-radius:12px;font-weight:700;display:inline-flex;gap:6px}
+    .badge-no{background:#eef2f7;color:#6b7280;padding:2px 8px;border-radius:12px}
 
     /* Defektu shēma */
     .defect-wrap2 { border:1px dashed #bbb; border-radius:12px; padding:10px; background:#fff; }
     .defect-toolbar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin-bottom:8px; }
-    .defect-canvas {
-      width: 60%;
-      max-width: 350px;
-      aspect-ratio: 2 / 3;
-      background: #ffffff;
-      border-radius: 12px;
-      position: relative;
-      margin: 0 auto;
-      overflow: hidden;
-    }
-    .defect-canvas img.plan-img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-      display: block;
-      user-select: none;
-      -webkit-user-drag: none;
-      pointer-events: none;
-    }
+    .defect-canvas {width: 60%; max-width: 350px; aspect-ratio: 2 / 3; background: #ffffff; border-radius: 12px; position: relative;margin: 0 auto; overflow: hidden;}
+    .defect-canvas img.plan-img {width: 100%;height: 100%;object-fit: contain;display: block;user-select: none;-webkit-user-drag: none;pointer-events: none;}
     @media (max-width: 350px){ .defect-canvas { width: 100%; } }
 
     .pin { position:absolute; width:18px; height:18px; border-radius:50%; transform:translate(-50%,-50%); border:2px solid #fff; box-shadow:0 0 0 2px rgba(0,0,0,.15); cursor:grab; }
@@ -112,7 +67,13 @@
     .photo-item img { width:70%; border:1px solid #e5e7eb; border-radius:8px; display:block; }
     .photo-cap { font-size:12px; color:#475569; margin-top:4px; }
 
-    /* Centered success popup */
+    .print-wrap, .print-wrap *{-webkit-text-size-adjust: none !important; /* iOS: neliec automātiski palielināt */text-size-adjust: none !important;}
+
+    .print-wrap{ font-size: 13px; line-height: 1.35; }
+    .pw-title{ font-size: 20px; }
+    .kv th, .kv td, .text-box{ font-size: 12.5px; }
+    .sec-title{ font-size: 13px; }
+
     .success-backdrop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45);z-index:9999}
     .success-backdrop.show{display:flex}
     .success-pop{background:#fff;min-width:320px;max-width:92vw;border-radius:18px;box-shadow:0 18px 60px rgba(0,0,0,.35);padding:22px 24px;text-align:center;opacity:0;transform:scale(.96);transition:opacity .18s ease,transform .18s ease}
@@ -121,6 +82,18 @@
     .success-pop h3{margin:4px 0 0;font-size:24px}
     .success-pop p{margin:6px 0 0;font-size:14px;color:#334155}
     .success-pop .btn{margin-top:12px;padding:10px 14px;border:0;border-radius:10px;background:#0a84ff;color:#fff;cursor:pointer}
+    
+    .works-list{display:grid;grid-template-columns:1fr;gap:10px;margin:12px 0;}
+    @media (min-width:640px){ .works-list{ grid-template-columns:1fr 1fr; } }
+    
+    .work-item{ display:block; }
+    .work-item input{ position:absolute; opacity:0; pointer-events:none; }
+    .work-item .box{display:flex; align-items:center; gap:12px;padding:12px 14px; min-height:52px;border:1.5px solid #d0d7de; border-radius:12px;background:#fff;-webkit-tap-highlight-color: transparent;}
+    .work-item .check{width:22px; height:22px; flex:0 0 22px;border:2px solid #94a3b8; border-radius:6px;background:#fff;}
+    .work-item input:checked + .box{ border-color:#2563eb; background:#eff6ff; }
+    .work-item input:checked + .box .check{background:#2563eb; border-color:#2563eb;box-shadow: inset 0 0 0 3px #fff;}
+    .work-item .txt{ font-size:16px; line-height:1.25; color:#0f172a; }
+    .work-item .txt b{ font-weight:700; }
   </style>
 </head>
 <body>
@@ -134,7 +107,6 @@
       <div class="row">
         <div>
           <label>Kundetype</label>
-          <!-- Kundetype nav obligāts; obligāta ir Bedrift tikai tad, ja izvēlēta bedrift -->
           <select id="companyType">
             <option value="business">Juridisk person (bedrift)</option>
             <option value="private">Privat (uten bedrift)</option>
@@ -145,7 +117,7 @@
           <select id="companySelect">
             <option value="" selected disabled>— Velg bedrift —</option>
             <option value="ferda">Ferda</option>
-            <option value="motorforum">Motorforum</option>
+            <option value="motoforum">Motoforum</option>
             <option value="other">Annen…</option>
           </select>
           <div id="otherCompanyBlock" class="hidden" style="margin-top:8px">
@@ -181,20 +153,55 @@
       <div class="thumbs" id="thumbs"></div>
 
       <h2>Arbeid</h2>
-      <div class="works-grid">
-        <label class="work-card"><input type="checkbox" class="work" value="innvendig_vask" /><span>🧽 Innvendig vask</span></label>
-        <label class="work-card"><input type="checkbox" class="work" value="utvendig_vask_voks" /><span>🚿✨ Utvendig vask + voks</span></label>
-        <label class="work-card"><input type="checkbox" class="work" value="innvendig_utvendig_vask_voks" /><span>🧽🚿✨ Innvendig/utvendig vask + voks</span></label>
-        <label class="work-card"><input type="checkbox" class="work" value="polering1_voks" /><span>1️⃣🌀 1-stegs polering + voks</span></label>
-        <label class="work-card"><input type="checkbox" class="work" value="polering2_voks" /><span>2️⃣🌀 2-stegs polering + voks</span></label>
-        <label class="work-card"><input type="checkbox" class="work" value="keramisk_coating" /><span>🛡 Keramisk coating</span></label>
-        <label class="work-card"><input type="checkbox" class="work" value="fullshine_pakke" /><span>✨ Fullshine pakke</span></label>
-        <label class="work-card"><input type="checkbox" class="work" value="express_utvendig_vask" /><span>⚡🚿 Express utvendig vask</span></label>
-        <label class="work-card"><input type="checkbox" class="work" value="express_innvendig_vask" /><span>⚡🧽 Express innvendig vask</span></label>
-      </div>
+<div class="works-list" role="group" aria-labelledby="arbeid-title">
+  <label class="work-item">
+    <input type="checkbox" class="work" value="innvendig_vask">
+    <div class="box"><span class="check" aria-hidden="true"></span><span class="txt">🧽 <b>Innvendig vask</b></span></div>
+  </label>
 
-      <label>Andre arbeider / merknader</label>
-      <textarea id="workNotes" placeholder="Tilleggsbeskrivelse av utført arbeid"></textarea>
+  <label class="work-item">
+    <input type="checkbox" class="work" value="utvendig_vask_voks">
+    <div class="box"><span class="check"></span><span class="txt">🚿✨ <b>Utvendig vask + voks</b></span></div>
+  </label>
+
+  <label class="work-item">
+    <input type="checkbox" class="work" value="innvendig_utvendig_vask_voks">
+    <div class="box"><span class="check"></span><span class="txt">🧽🚿✨ <b>Innvendig/utvendig vask + voks</b></span></div>
+  </label>
+
+  <label class="work-item">
+    <input type="checkbox" class="work" value="polering1_voks">
+    <div class="box"><span class="check"></span><span class="txt">1️⃣🌀 <b>1-stegs polering + voks</b></span></div>
+  </label>
+
+  <label class="work-item">
+    <input type="checkbox" class="work" value="polering2_voks">
+    <div class="box"><span class="check"></span><span class="txt">2️⃣🌀 <b>2-stegs polering + voks</b></span></div>
+  </label>
+
+  <label class="work-item">
+    <input type="checkbox" class="work" value="keramisk_coating">
+    <div class="box"><span class="check"></span><span class="txt">🛡 <b>Keramisk coating</b></span></div>
+  </label>
+
+  <label class="work-item">
+    <input type="checkbox" class="work" value="fullshine_pakke">
+    <div class="box"><span class="check"></span><span class="txt">✨ <b>Fullshine pakke</b></span></div>
+  </label>
+
+  <label class="work-item">
+    <input type="checkbox" class="work" value="express_utvendig_vask">
+    <div class="box"><span class="check"></span><span class="txt">⚡🚿 <b>Express utvendig vask</b></span></div>
+  </label>
+
+  <label class="work-item">
+    <input type="checkbox" class="work" value="express_innvendig_vask">
+    <div class="box"><span class="check"></span><span class="txt">⚡🧽 <b>Express innvendig vask</b></span></div>
+  </label>
+</div>
+
+<label>Andre arbeider / merknader</label>
+<textarea id="workNotes" placeholder="Tilleggsbeskrivelse av utført arbeid"></textarea>
 
       <h2>Skader</h2>
       <div class="defect-wrap2">
@@ -216,7 +223,6 @@
   </div>
 
 <script>
-  // === Google Apps Script Web App /exec URL ===
   const DRIVE_URL = "https://script.google.com/macros/s/AKfycbwiuDPcIHxWA1vtahW6mu_vq1NuQxv2mkbaeWGEmpV1-CEsZK8t6Gq9PYNbd988bv1L/exec";
   const PREVIEW_LOCAL = false;
 
@@ -257,15 +263,13 @@
   companySelect.addEventListener('change', refreshCompanyUI);
   refreshCompanyUI();
 
-    // ====== FOTO: glabājam, rādam, dzēšam; uzturam required ar DataTransfer ======
-let photoData = [];               // {name, type, dataUrl, _file}
+let photoData = [];              
 let fileAgg; let canAgg = false;
 try { fileAgg = new DataTransfer(); canAgg = true; } catch(_) {}
 
 function updatePhotoCount(){
   const c = document.getElementById('photoCount');
   if (c) c.textContent = photoData.length ? `(${photoData.length})` : '';
-  // Fallback: ja DataTransfer nav, lieto custom required
   if (!canAgg) photosEl.setCustomValidity(photoData.length ? '' : 'Legg til minst ett bilde');
 }
 
@@ -290,18 +294,15 @@ async function fileToJpegDataUrl(file){
   catch { return dataUrl; }
 }
 
-// sīktēls ar dzēšanas pogu
 function addThumb(item){
   const wrap = document.createElement('div'); wrap.className = 'thumb';
   const img  = document.createElement('img'); img.src = item.dataUrl; img.alt = item.name||'Bilde';
   const del  = document.createElement('button'); del.type='button'; del.className='thumb-del'; del.title='Slett'; del.textContent='×';
 
   del.addEventListener('click', () => {
-    // izņem no saraksta
     const idx = photoData.indexOf(item);
     if (idx > -1) photoData.splice(idx,1);
 
-    // atjauno input.files, lai required/“N files selected” paliek korekts
     if (canAgg) {
       fileAgg = new DataTransfer();
       for (const p of photoData) if (p._file) fileAgg.items.add(p._file);
@@ -319,7 +320,7 @@ function addThumb(item){
 photosEl.addEventListener('change', async (e) => {
   const files = Array.from(e.target.files || []);
   for (const f of files) {
-    if (canAgg) fileAgg.items.add(f);      // native files → required
+    if (canAgg) fileAgg.items.add(f);      
     const jpeg = await fileToJpegDataUrl(f);
     const item = { name:f.name, type:'image/jpeg', dataUrl:jpeg, _file:f };
     photoData.push(item);
@@ -327,10 +328,8 @@ photosEl.addEventListener('change', async (e) => {
   }
   if (canAgg) { try { photosEl.files = fileAgg.files; } catch(_) {} }
   updatePhotoCount();
-  // NESLĒDZAM photosEl.value – lai rādās “2 files” u.tml.
 });
 
-// Palīgfunkcijas (ja tev nav):
 function readFileAsDataURL(file){
   return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); });
 }
@@ -350,13 +349,13 @@ function downscaleImage(dataUrl, maxSize, quality=0.9){
   });
 }
 
-// ====== Izsauc šo pēc veiksmīgas nosūtīšanas, lai notīrītu ======
 function resetPhotos(){
   photoData = [];
   thumbsEl.innerHTML = '';
   try { fileAgg = new DataTransfer(); photosEl.files = fileAgg.files; } catch(_) {}
   updatePhotoCount();
 }
+
   // Defektu shēma
   const defectCanvasEl = document.getElementById('defectCanvas');
   const clearPinsBtn = document.getElementById('clearPins');
@@ -417,7 +416,6 @@ function resetPhotos(){
     }
   }
 
-  // Plāna bilde (ja fails nav icons/plan.png, nomaini ceļu)
   function getPlanSvg(){
     return `<img src="icons/plan.png" alt="Bilskisse (topp)" class="plan-img">`;
   }
@@ -459,99 +457,122 @@ function resetPhotos(){
 
   // PDF ģenerēšana
   async function makePdfDataUrlFromForm(entry) {
-    let defectImgData = '';
-    try {
-      const c = await html2canvas(document.getElementById('defectCanvas'), { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-      defectImgData = c.toDataURL('image/png');
-    } catch {}
+  // 1) Defektu shēma → PNG (no redzamā canvasa)
+  let defectImgData = '';
+  try {
+    const defEl = document.getElementById('defectCanvas');
+    const defCanvas = await html2canvas(defEl, {
+      scale: 2, useCORS: true, backgroundColor: '#ffffff',
+      windowWidth: defEl.clientWidth, windowHeight: defEl.clientHeight,
+      scrollX: 0, scrollY: 0
+    });
+    defectImgData = defCanvas.toDataURL('image/png');
+  } catch {}
 
-    const wrap = document.createElement('div');
-    wrap.className = 'print-wrap';
-    wrap.innerHTML = `
-      <div class="pw-header">
-        <div style="display:flex;align-items:center;gap:10px">
-          <img src="icons/icon-192.png" alt="Ikon" width="62" height="62" style="border-radius:6px" />
-          <div class="pw-title">JP-Bilpleie</div>
-        </div>
-        <div class="pw-doc"><b>Dato:</b> ${entry.date||''}</div>
+  // 2) Uzbūvējam drukas saturu
+  const wrap = document.createElement('div');
+  wrap.className = 'print-wrap';
+  wrap.innerHTML = `
+    <div class="pw-header">
+      <div style="display:flex;align-items:center;gap:10px">
+        <img src="icons/icon-192.png" alt="Ikon" width="62" height="62" style="border-radius:6px" />
+        <div class="pw-title">JP-Bilpleie</div>
       </div>
+      <div class="pw-doc"><b>Dato:</b> ${entry.date||''}</div>
+    </div>
 
-      <div class="sec-title">Kunde</div>
-      <table class="kv">
-        <tr><th>Type</th><td>${entry.companyType==='business'?'Juridisk person (bedrift)':'Privat'}</td></tr>
-        <tr><th>Bedrift</th><td>${entry.companyType==='business' ? (entry.companyName||'') : '—'}</td></tr>
-      </table>
+    <div class="sec-title">Kunde</div>
+    <table class="kv">
+      <tr><th>Type</th><td>${entry.companyType==='business'?'Juridisk person (bedrift)':'Privat'}</td></tr>
+      <tr><th>Bedrift</th><td>${entry.companyType==='business' ? (entry.companyName||'') : '—'}</td></tr>
+    </table>
 
-      <div class="sec-title">Kjøretøy</div>
-      <table class="kv">
-        <tr><th>Tilstand</th><td>${entry.car.condition==='new'?'Ny':'Brukt'}</td></tr>
-        <tr><th>Merke / Modell</th><td>${(entry.car.brand||'')+' '+(entry.car.model||'')}</td></tr>
-        <tr><th>VIN / Reg.nr.</th><td>${entry.car.vinOrReg||''}</td></tr>
-        <tr><th>Kilometerstand (km)</th><td>${entry.car.mileage||''}</td></tr>
-      </table>
+    <div class="sec-title">Kjøretøy</div>
+    <table class="kv">
+      <tr><th>Tilstand</th><td>${entry.car.condition==='new'?'Ny':'Brukt'}</td></tr>
+      <tr><th>Merke / Modell</th><td>${(entry.car.brand||'')+' '+(entry.car.model||'')}</td></tr>
+      <tr><th>VIN / Reg.nr.</th><td>${entry.car.vinOrReg||''}</td></tr>
+      <tr><th>Kilometerstand (km)</th><td>${entry.car.mileage||''}</td></tr>
+    </table>
 
-      <div class="sec-title">Utført arbeid</div>
-      <div class="chips" id="worksChips"></div>
-      <div style="height:6px"></div>
-      <div class="text-box">${(entry.workNotes||'').replace(/</g,'&lt;')}</div>
+    <div class="sec-title">Utført arbeid</div>
+    <table class="work-table">
+      <thead><tr><th>Arbeid</th><th>Status</th></tr></thead>
+      <tbody id="worksTbody"></tbody>
+    </table>
+    <div style="margin-top:6px;font-size:12px">
+      <b>Oppsummering:</b> <span id="worksSummary">—</span>
+    </div>
+    <div style="height:6px"></div>
+    <div class="text-box">${(entry.workNotes||'').replace(/</g,'&lt;')}</div>
 
-      <div class="sec-title">Skader</div>
-      ${defectImgData ? `<img src="${defectImgData}" style="width:50%;border:1px solid #e5e7eb;border-radius:8px">` : '<div class="text-box">—</div>'}
-      <div style="height:6px"></div>
-      <div class="text-box">${(entry.defectsText||'').replace(/</g,'&lt;')}</div>
+    <div class="sec-title">Skader</div>
+    ${defectImgData ? `<img src="${defectImgData}" style="width:50%;border:1px solid #e5e7eb;border-radius:8px">` : '<div class="text-box">—</div>'}
+    <div style="height:6px"></div>
+    <div class="text-box">${(entry.defectsText||'').replace(/</g,'&lt;')}</div>
 
-      <div class="sec-title">Kommentarer</div>
-      <div class="text-box">${(entry.comments||'').replace(/</g,'&lt;')}</div>
+    <div class="sec-title">Kommentarer</div>
+    <div class="text-box">${(entry.comments||'').replace(/</g,'&lt;')}</div>
 
-      <div class="sec-title">Bilder</div>
-      <div class="photos-block" id="photosBlock"></div>
-    `;
+    <div class="sec-title">Bilder</div>
+    <div class="photos-block" id="photosBlock"></div>
+  `;
 
-    const chips = wrap.querySelector('#worksChips');
-    (entry.works||[]).forEach(w => {
-      const s = document.createElement('span');
-      s.className = 'chip';
-      s.textContent = WORK_NAMES[w] || w;
-      chips.appendChild(s);
-    });
+  // Tabula ar ✓/— statusu
+  const tbody = wrap.querySelector('#worksTbody');
+  const selected = new Set(entry.works || []);
+  Object.entries(WORK_NAMES).forEach(([code, name]) => {
+    const tr = document.createElement('tr');
+    const done = selected.has(code);
+    tr.innerHTML = `
+      <td>${name}</td>
+      <td>${done ? '<span class="badge-yes">✓ Utført</span>' : '<span class="badge-no">— Ikke</span>'}</td>`;
+    tbody.appendChild(tr);
+  });
+  const picked = (entry.works || []).map(w => WORK_NAMES[w] || w);
+  wrap.querySelector('#worksSummary').textContent = picked.length ? picked.join(', ') : '—';
 
-    const pb = wrap.querySelector('#photosBlock');
-    (entry.photos||[]).forEach((p, i) => {
-      const item = document.createElement('div');
-      item.className = 'photo-item';
-      item.innerHTML = `<img src="${p.dataUrl}" alt="Foto ${i+1}"><div class="photo-cap">Foto ${i+1}</div>`;
-      pb.appendChild(item);
-    });
+  // Foto
+  const pb = wrap.querySelector('#photosBlock');
+  (entry.photos||[]).forEach((p, i) => {
+    const item = document.createElement('div');
+    item.className = 'photo-item';
+    item.innerHTML = `<img src="${p.dataUrl}" alt="Foto ${i+1}"><div class="photo-cap">Foto ${i+1}</div>`;
+    pb.appendChild(item);
+  });
 
-    const holder = document.createElement('div');
-    holder.style.position = 'fixed'; holder.style.left = '-10000px'; holder.style.top = '0';
-    holder.appendChild(wrap);
-    document.body.appendChild(holder);
+  // 3) Neredzamā vietā, pēc tam renderējam ar fiksētu “logu” izmēru (vienādi telefonā un PC)
+  const holder = document.createElement('div');
+  holder.style.position = 'fixed'; holder.style.left = '-10000px'; holder.style.top = '0';
+  holder.appendChild(wrap);
+  document.body.appendChild(holder);
 
-    const canvas = await html2canvas(wrap, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+  const canvas = await html2canvas(wrap, {
+    scale: 2, useCORS: true, backgroundColor: '#ffffff',
+    windowWidth: 794, windowHeight: wrap.scrollHeight, scrollX: 0, scrollY: 0
+  });
 
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF('p','mm','a4');
-    const pageWidth  = pdf.internal.pageSize.getWidth();
-    const pageHeight = pdf.internal.pageSize.getHeight();
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF('p','mm','a4');
+  const pageWidth  = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const imgData   = canvas.toDataURL('image/jpeg', 0.95);
+  const imgWidth  = pageWidth;
+  const imgHeight = canvas.height * imgWidth / canvas.width;
 
-    const imgData   = canvas.toDataURL('image/jpeg', 0.95);
-    const imgWidth  = pageWidth;
-    const imgHeight = canvas.height * imgWidth / canvas.width;
-
-    let heightLeft = imgHeight, position = 0;
+  let heightLeft = imgHeight, position = 0;
+  pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+  heightLeft -= pageHeight;
+  while (heightLeft > 0) {
+    pdf.addPage();
+    position = heightLeft - imgHeight;
     pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
     heightLeft -= pageHeight;
-    while (heightLeft > 0) {
-      pdf.addPage();
-      position = heightLeft - imgHeight;
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-    }
-
-    holder.remove();
-    return pdf.output('datauristring');
   }
+
+  holder.remove();
+  return pdf.output('datauristring');
+}
 
   // Sūtīt uz Drive
   async function sendPdfDataUriToDrive(entry, dataUri){
@@ -678,7 +699,7 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && navigator.onLine) flushQueue();
 });
 
-  // Submit
+// Submit
 form.addEventListener("submit", async (e) => {
   e.preventDefault();
   refreshCompanyUI();
@@ -707,7 +728,6 @@ form.addEventListener("submit", async (e) => {
       form.reset(); pins = []; thumbsEl.innerHTML = "";
       dateInput.value = new Date().toISOString().slice(0,10);
       refreshCompanyUI();
-      // Optional: try a flush after reset if online
       if (navigator.onLine) flushQueue();
     };
   } catch (err) {
