@@ -231,15 +231,23 @@
 
   let photoData = [];
   photosEl.addEventListener("change", async (e) => {
-    thumbsEl.innerHTML = ""; photoData = [];
-    const files = Array.from(e.target.files || []);
-    for (const f of files) {
-      const dataUrl = await readFileAsDataURL(f);
-      const compressed = await downscaleImage(dataUrl, 1600, 0.9);
-      photoData.push({ name: f.name, type: "image/jpeg", dataUrl: compressed });
-      const img = document.createElement("img"); img.src = compressed; thumbsEl.appendChild(img);
-    }
-  });
+  const files = Array.from(e.target.files || []);
+  for (const f of files) {
+    const dataUrl = await readFileAsDataURL(f);
+    const compressed = await downscaleImage(dataUrl, 1600, 0.9);
+
+    // pievieno klāt (NEVIS notīri un pārstāj)
+    photoData.push({ name: f.name, type: "image/jpeg", dataUrl: compressed });
+
+    // izveido sīktēlu
+    const img = document.createElement("img");
+    img.src = compressed;
+    thumbsEl.appendChild(img);
+  }
+
+  // ļauj uzreiz atvērt kameru vēlreiz (īpaši iOS)
+  photosEl.value = '';
+});
   function readFileAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); }); }
   function downscaleImage(dataUrl, maxSize, quality=0.9){ return new Promise((resolve)=>{ const img=new Image(); img.onload=()=>{ const ratio=Math.max(img.width,img.height)/maxSize; const w=ratio>1?Math.round(img.width/ratio):img.width; const h=ratio>1?Math.round(img.height/ratio):img.height; const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); resolve(c.toDataURL('image/jpeg',quality)); }; img.src=dataUrl; }); }
 
@@ -590,7 +598,7 @@ form.addEventListener("submit", async (e) => {
     const okBtn = document.getElementById('okSuccess');
     okBtn.onclick = () => {
       hideCenterSuccess();
-      form.reset(); pins = []; thumbsEl.innerHTML = "";
+      form.reset(); pins = []; thumbsEl.innerHTML = ""; photoData = [];
       dateInput.value = new Date().toISOString().slice(0,10);
       refreshCompanyUI();
       // Optional: try a flush after reset if online
