@@ -30,8 +30,36 @@
     .small { font-size:12px; color:#666; }
     .msg { margin-top:12px; }
     .hidden { display:none !important; }
-    .thumbs { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
-    .thumbs img { width:86px; height:86px; object-fit:cover; border-radius:10px; border:1px solid #ddd; }
+    .thumbs{
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap:10px; margin-top:8px;
+}
+.thumb{
+  position:relative; width:100%; aspect-ratio:1/1;
+  border-radius:12px; overflow:hidden;
+  border:1px solid #e5e7eb; background:#f8fafc;
+}
+.thumb img{ width:100%; height:100%; object-fit:cover; display:block; cursor:pointer; }
+.thumb .thumb-del{
+  position:absolute; 
+  top:1px;                 /* sit nicely inside the corner */
+  right:4px;
+  width:28px;              /* smaller circle */
+  height:28px;
+  border:0;
+  border-radius:50%;
+  background:rgba(17,24,39,.9);
+  color:#fff;
+  display:flex;            /* perfect centering */
+  align-items:center;
+  justify-content:center;
+  font-size:12px;          /* smaller “×” */
+  line-height:1;
+  padding:0;
+  cursor:pointer;
+}
+.thumb .thumb-del:hover{ background:#ef4444; }
 
     .works-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 12px 0; }
     .work-card { display:flex; align-items:center; justify-content:center; background:#f4f6f9; border:2px solid #d0d7de; border-radius:12px; padding:14px; font-weight:600; text-align:center; font-size:15px; user-select:none; }
@@ -229,28 +257,106 @@
   companySelect.addEventListener('change', refreshCompanyUI);
   refreshCompanyUI();
 
-  let photoData = [];
-  photosEl.addEventListener("change", async (e) => {
+    // ====== FOTO: glabājam, rādam, dzēšam; uzturam required ar DataTransfer ======
+let photoData = [];               // {name, type, dataUrl, _file}
+let fileAgg; let canAgg = false;
+try { fileAgg = new DataTransfer(); canAgg = true; } catch(_) {}
+
+function updatePhotoCount(){
+  const c = document.getElementById('photoCount');
+  if (c) c.textContent = photoData.length ? `(${photoData.length})` : '';
+  // Fallback: ja DataTransfer nav, lieto custom required
+  if (!canAgg) photosEl.setCustomValidity(photoData.length ? '' : 'Legg til minst ett bilde');
+}
+
+function isHeic(file){
+  return /hei(c|f)/i.test(file.type) || /\.hei(c|f)$/i.test(file.name);
+}
+function blobToDataURL(blob){
+  return new Promise((res, rej)=>{
+    const fr = new FileReader(); fr.onload = () => res(fr.result);
+    fr.onerror = rej; fr.readAsDataURL(blob);
+  });
+}
+async function fileToJpegDataUrl(file){
+  if (isHeic(file) && window.heic2any){
+    try {
+      const out = await heic2any({ blob:file, toType:'image/jpeg', quality:0.9 });
+      return await blobToDataURL(out);
+    } catch(e){ console.warn('HEIC convert failed:', e); }
+  }
+  const dataUrl = await readFileAsDataURL(file);
+  try { return await downscaleImage(dataUrl, 1600, 0.9); }
+  catch { return dataUrl; }
+}
+
+// sīktēls ar dzēšanas pogu
+function addThumb(item){
+  const wrap = document.createElement('div'); wrap.className = 'thumb';
+  const img  = document.createElement('img'); img.src = item.dataUrl; img.alt = item.name||'Bilde';
+  const del  = document.createElement('button'); del.type='button'; del.className='thumb-del'; del.title='Slett'; del.textContent='×';
+
+  del.addEventListener('click', () => {
+    // izņem no saraksta
+    const idx = photoData.indexOf(item);
+    if (idx > -1) photoData.splice(idx,1);
+
+    // atjauno input.files, lai required/“N files selected” paliek korekts
+    if (canAgg) {
+      fileAgg = new DataTransfer();
+      for (const p of photoData) if (p._file) fileAgg.items.add(p._file);
+      try { photosEl.files = fileAgg.files; } catch(_) {}
+    }
+    wrap.remove();
+    updatePhotoCount();
+  });
+
+  wrap.appendChild(img);
+  wrap.appendChild(del);
+  thumbsEl.appendChild(wrap);
+}
+
+photosEl.addEventListener('change', async (e) => {
   const files = Array.from(e.target.files || []);
   for (const f of files) {
-    const dataUrl = await readFileAsDataURL(f);
-    const compressed = await downscaleImage(dataUrl, 1600, 0.9);
-
-    // pievieno klāt (NEVIS notīri un pārstāj)
-    photoData.push({ name: f.name, type: "image/jpeg", dataUrl: compressed });
-
-    // izveido sīktēlu
-    const img = document.createElement("img");
-    img.src = compressed;
-    thumbsEl.appendChild(img);
+    if (canAgg) fileAgg.items.add(f);      // native files → required
+    const jpeg = await fileToJpegDataUrl(f);
+    const item = { name:f.name, type:'image/jpeg', dataUrl:jpeg, _file:f };
+    photoData.push(item);
+    addThumb(item);
   }
-
-  // ļauj uzreiz atvērt kameru vēlreiz (īpaši iOS)
-  photosEl.value = '';
+  if (canAgg) { try { photosEl.files = fileAgg.files; } catch(_) {} }
+  updatePhotoCount();
+  // NESLĒDZAM photosEl.value – lai rādās “2 files” u.tml.
 });
-  function readFileAsDataURL(file){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); }); }
-  function downscaleImage(dataUrl, maxSize, quality=0.9){ return new Promise((resolve)=>{ const img=new Image(); img.onload=()=>{ const ratio=Math.max(img.width,img.height)/maxSize; const w=ratio>1?Math.round(img.width/ratio):img.width; const h=ratio>1?Math.round(img.height/ratio):img.height; const c=document.createElement('canvas'); c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h); resolve(c.toDataURL('image/jpeg',quality)); }; img.src=dataUrl; }); }
 
+// Palīgfunkcijas (ja tev nav):
+function readFileAsDataURL(file){
+  return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); });
+}
+function downscaleImage(dataUrl, maxSize, quality=0.9){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    img.onload = () => {
+      const ratio = Math.max(img.width,img.height)/maxSize;
+      const w = ratio>1 ? Math.round(img.width/ratio) : img.width;
+      const h = ratio>1 ? Math.round(img.height/ratio) : img.height;
+      const c = document.createElement('canvas'); c.width=w; c.height=h;
+      c.getContext('2d').drawImage(img,0,0,w,h);
+      try { resolve(c.toDataURL('image/jpeg', quality)); } catch(e){ reject(e); }
+    };
+    img.onerror = () => reject(new Error('Image load failed'));
+    img.src = dataUrl;
+  });
+}
+
+// ====== Izsauc šo pēc veiksmīgas nosūtīšanas, lai notīrītu ======
+function resetPhotos(){
+  photoData = [];
+  thumbsEl.innerHTML = '';
+  try { fileAgg = new DataTransfer(); photosEl.files = fileAgg.files; } catch(_) {}
+  updatePhotoCount();
+}
   // Defektu shēma
   const defectCanvasEl = document.getElementById('defectCanvas');
   const clearPinsBtn = document.getElementById('clearPins');
@@ -598,7 +704,7 @@ form.addEventListener("submit", async (e) => {
     const okBtn = document.getElementById('okSuccess');
     okBtn.onclick = () => {
       hideCenterSuccess();
-      form.reset(); pins = []; thumbsEl.innerHTML = ""; photoData = [];
+      form.reset(); pins = []; thumbsEl.innerHTML = "";
       dateInput.value = new Date().toISOString().slice(0,10);
       refreshCompanyUI();
       // Optional: try a flush after reset if online
