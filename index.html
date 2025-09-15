@@ -746,5 +746,12 @@ form.addEventListener("submit", async (e) => {
     <button type="button" class="btn" id="okSuccess">OK</button>
   </div>
 </div>
+  <script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js', { scope: './' })
+      .catch(console.error);
+  });
+}
 </body>
 </html>
