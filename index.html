@@ -732,7 +732,7 @@ form.addEventListener("submit", async (e) => {
     const okBtn = document.getElementById('okSuccess');
     okBtn.onclick = () => {
       hideCenterSuccess();
-      form.reset(); pins = []; thumbsEl.innerHTML = "";
+      form.reset(); pins = []; renderPins(); thumbsEl.innerHTML = "";
       dateInput.value = new Date().toISOString().slice(0,10);
       refreshCompanyUI();
       if (navigator.onLine) flushQueue();
