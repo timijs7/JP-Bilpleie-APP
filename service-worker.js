@@ -1,6 +1,9 @@
-// network-first SW with offline fallback
-const CACHE = "pwa-cache-online-v342";
-const ASSETS = [
+// Cache first for static assets, network first for other requests
+const CACHE_VERSION = '1';
+const CACHE_STATIC = `static-cache-v${CACHE_VERSION}`;
+const CACHE_DYNAMIC = `dynamic-cache-v${CACHE_VERSION}`;
+
+const STATIC_ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
@@ -11,17 +14,71 @@ const ASSETS = [
   "https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js",
   "https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"
 ];
-self.addEventListener("install", (e) => { self.skipWaiting(); e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS))); });
-self.addEventListener("activate", (e) => { e.waitUntil((async () => { const keys = await caches.keys(); await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))); await self.clients.claim(); })()); });
-self.addEventListener("fetch", (e) => {
-  e.respondWith((async () => {
-    try {
-      const fresh = await fetch(e.request, { cache: "no-store" });
-      const cache = await caches.open(CACHE); cache.put(e.request, fresh.clone());
-      return fresh;
-    } catch {
-      const cached = await caches.match(e.request);
-      return cached || new Response("Offline un nav kešā.", { status: 503 });
-    }
-  })());
+
+// Install event - cache static assets
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(CACHE_STATIC)
+      .then(cache => {
+        console.log('[Service Worker] Precaching static assets');
+        return cache.addAll(STATIC_ASSETS);
+      })
+      .then(() => self.skipWaiting())
+  );
+});
+
+// Activate event - clean up old caches
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then(keyList => {
+        return Promise.all(keyList.map(key => {
+          if (key !== CACHE_STATIC && key !== CACHE_DYNAMIC) {
+            console.log('[Service Worker] Removing old cache', key);
+            return caches.delete(key);
+          }
+        }));
+      })
+      .then(() => self.clients.claim())
+  );
+});
+
+// Fetch event - cache-first for static assets, network-first for others
+self.addEventListener("fetch", (event) => {
+  event.respondWith(
+    caches.match(event.request)
+      .then(cachedResponse => {
+        // Return cached response if found
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+
+        // If not in cache, fetch from network
+        return fetch(event.request)
+          .then(response => {
+            // Check if we received a valid response
+            if (!response || response.status !== 200 || response.type !== 'basic') {
+              return response;
+            }
+
+            // Clone the response as it can only be consumed once
+            const responseToCache = response.clone();
+
+            // Add to dynamic cache
+            caches.open(CACHE_DYNAMIC)
+              .then(cache => {
+                cache.put(event.request, responseToCache);
+              });
+
+            return response;
+          })
+          .catch(() => {
+            // If both cache and network fail, return offline page
+            return new Response("Lietotne ir bezsaistē. Lūdzu, pārbaudiet interneta savienojumu.", {
+              status: 503,
+              headers: { 'Content-Type': 'text/plain' }
+            });
+          });
+      })
+  );
 });
