@@ -996,32 +996,121 @@ async function flushQueue() {
   return { sent, left };
 }
 
+// Check available storage space
+async function checkStorageQuota() {
+    if ('storage' in navigator && 'estimate' in navigator.storage) {
+        const estimate = await navigator.storage.estimate();
+        const available = estimate.quota - estimate.usage;
+        console.log(`Pieejamā vieta: ${formatBytes(available)}`);
+        return available;
+    }
+    return null;
+}
+
+// Compress PDF if needed
+async function compressPdfIfNeeded(dataUri) {
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (dataUri.length <= maxSize) return dataUri;
+
+    try {
+        // Extract base64 data
+        const base64 = dataUri.split(',')[1];
+        const binaryString = window.atob(base64);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        const pdfBlob = new Blob([bytes], { type: 'application/pdf' });
+
+        // Create new PDF with reduced quality
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF();
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                try {
+                    const canvas = document.createElement('canvas');
+                    const ratio = img.width / img.height;
+                    canvas.width = 1240; // A4 width at 150dpi
+                    canvas.height = canvas.width / ratio;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+                    pdf.addImage(compressedDataUrl, 'JPEG', 0, 0, pdf.internal.pageSize.width, pdf.internal.pageSize.height);
+                    resolve(pdf.output('datauristring'));
+                } catch (e) {
+                    reject(e);
+                } finally {
+                    URL.revokeObjectURL(pdfUrl);
+                }
+            };
+            img.onerror = reject;
+            img.src = pdfUrl;
+        });
+    } catch (e) {
+        console.warn('PDF saspiešana neizdevās:', e);
+        return dataUri; // Return original if compression fails
+    }
+}
+
 // Improved queueing with size checks and compression
 async function queueOrSend(entry, dataUri) {
-  // If online, try to send immediately
-  if (navigator.onLine) {
-    console.log('Mēģinu sūtīt failu uzreiz...');
-    const okNow = await uploadOne(entry, dataUri);
-    if (okNow) return { mode: 'sent' };
-    console.log('Tiešā sūtīšana neizdevās, saglabāju rindā...');
-  }
+    try {
+        // Check if data is too large
+        const dataSize = dataUri.length;
+        console.log(`PDF izmērs: ${formatBytes(dataSize)}`);
 
-  try {
-    // Add to queue with chunks
-    await idbAdd({ entry, dataUri, addedAt: Date.now() });
-    console.log('Fails veiksmīgi saglabāts rindā');
-    
-    // Try to flush queue if we're online
-    if (navigator.onLine) {
-      console.log('Mēģinu nosūtīt rindu...');
-      flushQueue().catch(console.error);
+        // Check available storage
+        const availableStorage = await checkStorageQuota();
+        if (availableStorage !== null && dataSize > availableStorage * 0.8) {
+            throw new Error('Nepietiek vietas ierīcē. Lūdzu, izdzēsiet nevajadzīgos failus.');
+        }
+
+        // Try to compress if needed
+        const compressedDataUri = await compressPdfIfNeeded(dataUri);
+        console.log(`Saspiestā PDF izmērs: ${formatBytes(compressedDataUri.length)}`);
+
+        // If online, try to send immediately
+        if (navigator.onLine) {
+            console.log('Mēģinu sūtīt failu uzreiz...');
+            const okNow = await uploadOne(entry, compressedDataUri);
+            if (okNow) return { mode: 'sent' };
+            console.log('Tiešā sūtīšana neizdevās, saglabāju rindā...');
+        }
+
+        // Try to clear old data if needed
+        const items = await idbAll();
+        if (items.length > 20) { // Ja ir vairāk nekā 20 faili
+            console.log('Daudz nesūtītu failu, mēģinu atbrīvot vietu...');
+            const oldestItems = items
+                .sort((a, b) => a.addedAt - b.addedAt)
+                .slice(0, 5); // Dzēš 5 vecākos
+            for (const item of oldestItems) {
+                await idbDel(item.id);
+            }
+        }
+
+        // Add to queue with chunks
+        await idbAdd({ entry, dataUri: compressedDataUri, addedAt: Date.now() });
+        console.log('Fails veiksmīgi saglabāts rindā');
+        
+        // Try to flush queue if we're online
+        if (navigator.onLine) {
+            console.log('Mēģinu nosūtīt rindu...');
+            flushQueue().catch(console.error);
+        }
+        
+        return { mode: 'queued' };
+    } catch (e) {
+        console.error('Kļūda saglabājot failu:', e);
+        const errorMsg = e.message.includes('QuotaExceededError') ?
+            'Nepietiek vietas ierīcē. Lūdzu, izdzēsiet vecos failus vai samaziniet attēlu skaitu.' :
+            'Neizdevās saglabāt failu. Lūdzu, mēģiniet vēlreiz ar mazāku attēlu skaitu vai mazāku izšķirtspēju.';
+        throw new Error(errorMsg);
     }
-    
-    return { mode: 'queued' };
-  } catch (e) {
-    console.error('Kļūda saglabājot failu:', e);
-    throw new Error('Neizdevās saglabāt failu. Lūdzu, mēģiniet vēlreiz vai samaziniet attēlu skaitu.');
-  }
 }
 
 // Auto flush on page load & when back online
