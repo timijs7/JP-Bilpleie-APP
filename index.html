@@ -284,11 +284,8 @@ async function updateOfflineStatus() {
 // Pievienojam retry pogas funkcionalitāti
 document.getElementById('retryButton').addEventListener('click', async () => {
     if (navigator.onLine) {
-        const result = await flushQueue();
+        throttledFlush(); // Use the same throttled function here
         updateOfflineStatus();
-        if (result.sent > 0) {
-            showCenterSuccess('Nosūtīts!', `${result.sent} ${result.sent === 1 ? 'fails nosūtīts' : 'faili nosūtīti'}`);
-        }
     }
 });
 
@@ -915,26 +912,57 @@ async function uploadOne(entry, dataUri) {
   }
 }
 
-// Simple queue processing
-async function flushQueue() {
-  const items = await idbAll();
-  if (!items.length) return { sent: 0, left: 0 };
+// Prevent concurrent uploads
+let isUploading = false;
 
-  let sent = 0;
-  for (const item of items) {
-    try {
-      const ok = await uploadOne(item.entry, item.dataUri);
-      if (ok) {
-        await idbDel(item.id);
-        sent++;
-      }
-    } catch (e) {
-      console.error('Failed to process queued item:', e);
-    }
+// Simple queue processing with lock
+async function flushQueue() {
+  // Check if already uploading
+  if (isUploading) {
+    console.log('Upload already in progress, skipping...');
+    return { sent: 0, left: 0 };
   }
 
-  const left = (await idbAll()).length;
-  return { sent, left };
+  try {
+    isUploading = true;
+    const items = await idbAll();
+    if (!items.length) return { sent: 0, left: 0 };
+
+    console.log(`Starting upload of ${items.length} items`);
+    let sent = 0;
+    
+    // Process each item with a small delay between attempts
+    for (const item of items) {
+      try {
+        if (!item.uploadAttempts) item.uploadAttempts = 0;
+        item.uploadAttempts++;
+        
+        // Skip if already tried too many times
+        if (item.uploadAttempts > 3) {
+          console.warn(`Skipping item ${item.id} - too many attempts`);
+          continue;
+        }
+
+        // Add a small delay between uploads
+        if (sent > 0) await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const ok = await uploadOne(item.entry, item.dataUri);
+        if (ok) {
+          await idbDel(item.id);
+          sent++;
+          console.log(`Successfully uploaded item ${item.id}`);
+        }
+      } catch (e) {
+        console.error(`Failed to process item ${item.id}:`, e);
+      }
+    }
+
+    const left = (await idbAll()).length;
+    console.log(`Upload complete. Sent: ${sent}, Left: ${left}`);
+    return { sent, left };
+  } finally {
+    isUploading = false;
+  }
 }
 
 // Simple queue or send
@@ -983,10 +1011,26 @@ async function queueOrSend(entry, dataUri) {
   }
 }
 
-// Auto flush on page load & when back online
-window.addEventListener('online', () => { flushQueue(); });
+// Throttle flush attempts
+let lastFlushAttempt = 0;
+const FLUSH_COOLDOWN = 5000; // 5 seconds between flush attempts
+
+function throttledFlush() {
+  const now = Date.now();
+  if (now - lastFlushAttempt < FLUSH_COOLDOWN) {
+    console.log('Flush attempted too soon, skipping...');
+    return;
+  }
+  lastFlushAttempt = now;
+  flushQueue();
+}
+
+// Auto flush on page load & when back online, but with throttling
+window.addEventListener('online', throttledFlush);
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible' && navigator.onLine) flushQueue();
+  if (document.visibilityState === 'visible' && navigator.onLine) {
+    throttledFlush();
+  }
 });
 
 // Submit
@@ -1045,3 +1089,4 @@ if ('serviceWorker' in navigator) {
 }
 </body>
 </html>
+ 
