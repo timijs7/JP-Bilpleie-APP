@@ -398,35 +398,114 @@ function addThumb(item){
 }
 
 photosEl.addEventListener('change', async (e) => {
+  const MAX_TOTAL_PHOTOS = 20; // Maksimālais attēlu skaits
   const files = Array.from(e.target.files || []);
-  for (const f of files) {
-    if (canAgg) fileAgg.items.add(f);      
-    const jpeg = await fileToJpegDataUrl(f);
-    const item = { name:f.name, type:'image/jpeg', dataUrl:jpeg, _file:f };
-    photoData.push(item);
-    addThumb(item);
+  
+  // Pārbaudam kopējo attēlu skaitu
+  if (photoData.length + files.length > MAX_TOTAL_PHOTOS) {
+    msg.textContent = `Nevar pievienot vairāk par ${MAX_TOTAL_PHOTOS} attēliem`;
+    return;
   }
-  if (canAgg) { try { photosEl.files = fileAgg.files; } catch(_) {} }
-  updatePhotoCount();
+
+  msg.textContent = "Apstrādāju attēlus...";
+  let successCount = 0;
+  
+  try {
+    for (const f of files) {
+      try {
+        // Pārbaudam faila izmēru
+        if (f.size > 15 * 1024 * 1024) { // 15MB limits oriģinālajam failam
+          console.warn(`Fails ${f.name} ir par lielu (${(f.size/1024/1024).toFixed(1)}MB)`);
+          continue;
+        }
+
+        if (canAgg) fileAgg.items.add(f);
+        const jpeg = await fileToJpegDataUrl(f);
+        const item = { name: f.name, type: 'image/jpeg', dataUrl: jpeg, _file: f };
+        photoData.push(item);
+        addThumb(item);
+        successCount++;
+      } catch (err) {
+        console.error(`Kļūda apstrādājot failu ${f.name}:`, err);
+      }
+    }
+
+    if (canAgg) {
+      try { photosEl.files = fileAgg.files; } catch(_) {}
+    }
+    
+    updatePhotoCount();
+    
+    // Paziņojums par rezultātu
+    if (successCount === 0) {
+      msg.textContent = "Neizdevās pievienot attēlus. Pārbaudiet vai tie nav par lielu.";
+    } else if (successCount < files.length) {
+      msg.textContent = `Pievienoti ${successCount} no ${files.length} attēliem. Daži attēli bija par lielu.`;
+    } else {
+      msg.textContent = "";
+    }
+  } catch (err) {
+    console.error('Kļūda pievienojot attēlus:', err);
+    msg.textContent = "Kļūda pievienojot attēlus. Mēģiniet vēlreiz ar mazākiem attēliem.";
+  }
 });
 
 function readFileAsDataURL(file){
   return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); });
 }
-function downscaleImage(dataUrl, maxSize, quality=0.9){
-  return new Promise((resolve,reject)=>{
-    const img = new Image();
-    img.onload = () => {
-      const ratio = Math.max(img.width,img.height)/maxSize;
-      const w = ratio>1 ? Math.round(img.width/ratio) : img.width;
-      const h = ratio>1 ? Math.round(img.height/ratio) : img.height;
-      const c = document.createElement('canvas'); c.width=w; c.height=h;
-      c.getContext('2d').drawImage(img,0,0,w,h);
-      try { resolve(c.toDataURL('image/jpeg', quality)); } catch(e){ reject(e); }
-    };
-    img.onerror = () => reject(new Error('Image load failed'));
-    img.src = dataUrl;
-  });
+async function downscaleImage(dataUrl, maxSize, initialQuality = 0.9) {
+  const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB maksimālais izmērs
+  let quality = initialQuality;
+  let attempt = 0;
+  const maxAttempts = 5;
+
+  while (attempt < maxAttempts) {
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error('Attēla ielāde neizdevās'));
+        img.src = dataUrl;
+      });
+
+      // Aprēķinām izmērus
+      let ratio = Math.max(img.width, img.height) / maxSize;
+      let w = ratio > 1 ? Math.round(img.width / ratio) : img.width;
+      let h = ratio > 1 ? Math.round(img.height / ratio) : img.height;
+
+      // Ja attēls ir ļoti liels, samazinām vēl vairāk
+      if (w * h > 4000000) { // 4 megapikseļi
+        ratio = Math.sqrt((w * h) / 4000000);
+        w = Math.round(w / ratio);
+        h = Math.round(h / ratio);
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      
+      const resultDataUrl = canvas.toDataURL('image/jpeg', quality);
+      
+      // Pārbaudam izmēru
+      const size = Math.ceil(resultDataUrl.length * 0.75); // aptuvens base64 izmērs baitos
+      
+      if (size <= MAX_FILE_SIZE) {
+        return resultDataUrl;
+      }
+      
+      // Ja fails joprojām ir par lielu, samazinām kvalitāti
+      quality *= 0.8;
+      attempt++;
+      
+      console.log(`Attēls joprojām par lielu (${(size/1024/1024).toFixed(2)}MB), mēģinu ar kvalitāti ${quality}`);
+    } catch (e) {
+      console.error('Kļūda apstrādājot attēlu:', e);
+      throw e;
+    }
+  }
+  
+  throw new Error('Neizdevās pietiekami samazināt attēlu. Lūdzu, izvēlieties mazāku attēlu.');
 }
 
 function resetPhotos(){
