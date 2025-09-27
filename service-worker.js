@@ -2,6 +2,7 @@
 const CACHE_VERSION = '1';
 const CACHE_STATIC = `static-cache-v${CACHE_VERSION}`;
 const CACHE_DYNAMIC = `dynamic-cache-v${CACHE_VERSION}`;
+const CACHE_DOCS = 'documents-cache'; // Jauns cache priekš dokumentiem
 
 const STATIC_ASSETS = [
   "./",
@@ -43,8 +44,18 @@ self.addEventListener("activate", (event) => {
   );
 });
 
-// Fetch event - cache-first for static assets, network-first for others
+// Fetch event - handle documents and static assets differently
 self.addEventListener("fetch", (event) => {
+  // Pārbaudam vai šis ir dokuments no mūsu cache
+  if (event.request.url.includes('/documents/')) {
+    event.respondWith(
+      caches.match(event.request)
+        .then(response => response || fetch(event.request))
+    );
+    return;
+  }
+
+  // Parastā loģika statiskajiem failiem
   event.respondWith(
     caches.match(event.request)
       .then(cachedResponse => {
@@ -82,3 +93,46 @@ self.addEventListener("fetch", (event) => {
       })
   );
 });
+
+// Background Sync - sinhronizē dokumentus, kad ir internets
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'sync-documents') {
+    event.waitUntil(syncDocuments());
+  }
+});
+
+async function syncDocuments() {
+  try {
+    const cache = await caches.open('documents-cache');
+    const requests = await cache.keys();
+    
+    for (const request of requests) {
+      if (request.url.includes('/documents/')) {
+        const response = await cache.match(request);
+        const docData = JSON.parse(response.headers.get('X-Document-Data'));
+        
+        try {
+          // Mēģinām nosūtīt dokumentu
+          const blob = await response.blob();
+          const reader = new FileReader();
+          const dataUri = await new Promise((resolve, reject) => {
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          
+          // Nosūtām uz serveri
+          await sendPdfDataUriToDrive(docData.entry, dataUri);
+          
+          // Ja veiksmīgi nosūtīts, dzēšam no cache
+          await cache.delete(request);
+          console.log(`Successfully synced and removed from cache: ${docData.fileName}`);
+        } catch (e) {
+          console.error(`Failed to sync document: ${docData.fileName}`, e);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Document sync failed:', e);
+  }
+}
