@@ -836,391 +836,151 @@ function resetPhotos(){
     pop.classList.remove('show');
     setTimeout(()=>bg.classList.remove('show'), 180);
   }
-// ---- Improved IndexedDB Storage with Chunking ----
+// Simple IndexedDB Storage
 const DB_NAME = 'jpbilpleie';
 const STORE = 'outbox';
-const CHUNK_STORE = 'chunks';
-const MAX_CHUNK_SIZE = 1024 * 1024; // 1MB chunks
 
-function idbOpen() {
-  return new Promise((res, rej) => {
-    const req = indexedDB.open(DB_NAME, 2); // Increased version for new store
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)) {
-        db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
-      }
-      if (!db.objectStoreNames.contains(CHUNK_STORE)) {
-        const chunkStore = db.createObjectStore(CHUNK_STORE, { keyPath: 'id', autoIncrement: true });
-        chunkStore.createIndex('fileId', 'fileId', { unique: false });
-      }
-    };
-    req.onsuccess = () => res(req.result);
-    req.onerror = () => rej(req.error);
-  });
-}
-
-// Split data into chunks
-function splitIntoChunks(data) {
-  const chunks = [];
-  let offset = 0;
-  while (offset < data.length) {
-    chunks.push(data.slice(offset, offset + MAX_CHUNK_SIZE));
-    offset += MAX_CHUNK_SIZE;
-  }
-  return chunks;
-}
-
-// Save chunks to IndexedDB
-async function saveChunks(fileId, dataUri) {
-  const db = await idbOpen();
-  const tx = db.transaction(CHUNK_STORE, 'readwrite');
-  const store = tx.objectStore(CHUNK_STORE);
-  
-  const chunks = splitIntoChunks(dataUri);
-  const promises = chunks.map((chunk, index) => 
-    new Promise((resolve, reject) => {
-      const req = store.add({
-        fileId,
-        index,
-        data: chunk,
-        total: chunks.length
-      });
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    })
-  );
-  
-  await Promise.all(promises);
-  db.close();
-  return chunks.length;
-}
-
-// Get all chunks for a file
-async function getChunks(fileId) {
-  const db = await idbOpen();
-  const tx = db.transaction(CHUNK_STORE, 'readonly');
-  const store = tx.objectStore(CHUNK_STORE);
-  const index = store.index('fileId');
-  
+async function idbOpen() {
+  const req = indexedDB.open(DB_NAME, 1);
+  req.onupgradeneeded = () => {
+    const db = req.result;
+    if (!db.objectStoreNames.contains(STORE)) {
+      db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
+    }
+  };
   return new Promise((resolve, reject) => {
-    const req = index.getAll(IDBKeyRange.only(fileId));
-    req.onsuccess = () => {
-      const chunks = req.result.sort((a, b) => a.index - b.index);
-      resolve(chunks.map(c => c.data).join(''));
-    };
-    req.onerror = () => reject(req.error);
-  });
-}
-
-// Delete chunks for a file
-async function deleteChunks(fileId) {
-  const db = await idbOpen();
-  const tx = db.transaction(CHUNK_STORE, 'readwrite');
-  const store = tx.objectStore(CHUNK_STORE);
-  const index = store.index('fileId');
-  
-  const keys = await new Promise((resolve, reject) => {
-    const req = index.getAllKeys(IDBKeyRange.only(fileId));
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
   });
-  
-  await Promise.all(keys.map(key => 
-    new Promise((resolve, reject) => {
-      const req = store.delete(key);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    })
-  ));
-  
-  db.close();
 }
 
 async function idbAdd(item) {
   const db = await idbOpen();
   const tx = db.transaction(STORE, 'readwrite');
+  const store = tx.objectStore(STORE);
   
-  // Save metadata first
-  const id = await new Promise((resolve, reject) => {
-    const req = tx.objectStore(STORE).add({
+  return new Promise((resolve, reject) => {
+    const req = store.add({
       ...item,
-      dataUri: null, // Don't store dataUri in metadata
-      chunks: 0,
       addedAt: Date.now()
     });
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
   });
-  
-  // Then save chunks
-  const chunkCount = await saveChunks(id, item.dataUri);
-  
-  // Update metadata with chunk count
-  await new Promise((resolve, reject) => {
-    const req = tx.objectStore(STORE).put({
-      ...item,
-      id,
-      dataUri: null,
-      chunks: chunkCount,
-      addedAt: Date.now()
-    });
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
-  
-  db.close();
-  return id;
 }
 
 async function idbAll() {
   const db = await idbOpen();
   const tx = db.transaction(STORE, 'readonly');
+  const store = tx.objectStore(STORE);
   
-  const items = await new Promise((resolve, reject) => {
-    const req = tx.objectStore(STORE).getAll();
+  return new Promise((resolve, reject) => {
+    const req = store.getAll();
     req.onsuccess = () => resolve(req.result || []);
     req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
   });
-  
-  // Load chunks for each item
-  for (const item of items) {
-    if (item.chunks > 0) {
-      item.dataUri = await getChunks(item.id);
-    }
-  }
-  
-  db.close();
-  return items;
 }
 
 async function idbDel(id) {
   const db = await idbOpen();
   const tx = db.transaction(STORE, 'readwrite');
+  const store = tx.objectStore(STORE);
   
-  await Promise.all([
-    new Promise((resolve, reject) => {
-      const req = tx.objectStore(STORE).delete(id);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
-    }),
-    deleteChunks(id)
-  ]);
-  
-  db.close();
+  return new Promise((resolve, reject) => {
+    const req = store.delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
+  });
 }
 
 
-// Improved upload with retry logic
-async function uploadOne(entry, dataUri, retryCount = 3) {
-  for (let i = 0; i < retryCount; i++) {
+// Simple upload with single retry
+async function uploadOne(entry, dataUri) {
+  try {
+    await sendPdfDataUriToDrive(entry, dataUri);
+    return true;
+  } catch (e) {
+    console.warn('Failed to upload:', e);
     try {
-      console.log(`Mēģinu sūtīt failu (mēģinājums ${i + 1}/${retryCount})...`);
+      await new Promise(resolve => setTimeout(resolve, 1000));
       await sendPdfDataUriToDrive(entry, dataUri);
-      console.log('Fails veiksmīgi nosūtīts!');
       return true;
-    } catch (e) {
-      console.warn(`Kļūda sūtot (mēģinājums ${i + 1}/${retryCount}):`, e);
-      if (i < retryCount - 1) {
-        // Wait before retry (exponential backoff)
-        await new Promise(resolve => setTimeout(resolve, Math.pow(2, i) * 1000));
-      }
+    } catch (e2) {
+      console.warn('Upload retry failed:', e2);
+      return false;
     }
   }
-  console.error('Neizdevās nosūtīt pēc visiem mēģinājumiem');
-  return false;
 }
 
-// Improved queue flushing with progress tracking
+// Simple queue processing
 async function flushQueue() {
   const items = await idbAll();
   if (!items.length) return { sent: 0, left: 0 };
-  
-  console.log(`Sāku sūtīt ${items.length} failus no rindas...`);
+
   let sent = 0;
-  
   for (const item of items) {
     try {
-      console.log(`Sūtu failu ${item.id} (${sent + 1}/${items.length})...`);
       const ok = await uploadOne(item.entry, item.dataUri);
       if (ok) {
         await idbDel(item.id);
         sent++;
-        console.log(`Fails ${item.id} veiksmīgi nosūtīts (${sent}/${items.length})`);
       }
     } catch (e) {
-      console.error(`Kļūda apstrādājot failu ${item.id}:`, e);
+      console.error('Failed to process queued item:', e);
     }
   }
-  
+
   const left = (await idbAll()).length;
-  console.log(`Sūtīšana pabeigta. Nosūtīti: ${sent}, Atlikuši: ${left}`);
   return { sent, left };
 }
 
-// Check available storage space
-async function checkStorageQuota() {
-    if ('storage' in navigator && 'estimate' in navigator.storage) {
-        const estimate = await navigator.storage.estimate();
-        const available = estimate.quota - estimate.usage;
-        console.log(`Pieejamā vieta: ${formatBytes(available)}`);
-        return available;
-    }
-    return null;
-}
-
-// Compress PDF if needed
-async function compressPdfIfNeeded(dataUri) {
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (dataUri.length <= maxSize) return dataUri;
-
-    try {
-        // Extract base64 data
-        const base64 = dataUri.split(',')[1];
-        const binaryString = window.atob(base64);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
-        const pdfBlob = new Blob([bytes], { type: 'application/pdf' });
-
-        // Create new PDF with reduced quality
-        const { jsPDF } = window.jspdf;
-        const pdf = new jsPDF();
-        const pdfUrl = URL.createObjectURL(pdfBlob);
-        
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => {
-                try {
-                    const canvas = document.createElement('canvas');
-                    const ratio = img.width / img.height;
-                    canvas.width = 1240; // A4 width at 150dpi
-                    canvas.height = canvas.width / ratio;
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    
-                    const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
-                    pdf.addImage(compressedDataUrl, 'JPEG', 0, 0, pdf.internal.pageSize.width, pdf.internal.pageSize.height);
-                    resolve(pdf.output('datauristring'));
-                } catch (e) {
-                    reject(e);
-                } finally {
-                    URL.revokeObjectURL(pdfUrl);
-                }
-            };
-            img.onerror = reject;
-            img.src = pdfUrl;
-        });
-    } catch (e) {
-        console.warn('PDF saspiešana neizdevās:', e);
-        return dataUri; // Return original if compression fails
-    }
-}
-
-// Improved queueing with enhanced error handling and compression
+// Simple queue or send
 async function queueOrSend(entry, dataUri) {
-    try {
-        // Vispirms mēģinām iztīrīt vecos datus, ja tādi ir
-        try {
-            const items = await idbAll();
-            if (items.length > 0) {
-                console.log('Mēģinu iztīrīt vecos datus...');
-                const oldItems = items.filter(item => {
-                    const age = Date.now() - item.addedAt;
-                    return age > 7 * 24 * 60 * 60 * 1000; // vecāki par 7 dienām
-                });
-                for (const item of oldItems) {
-                    await idbDel(item.id);
-                }
-            }
-        } catch (e) {
-            console.warn('Neizdevās iztīrīt vecos datus:', e);
-        }
-
-        // Pārbaudām PDF izmēru
-        const dataSize = dataUri.length;
-        console.log(`Sākotnējais PDF izmērs: ${formatBytes(dataSize)}`);
-
-        // Ja PDF ir lielāks par 5MB, mēģinām to saspiest
-        let finalDataUri = dataUri;
-        if (dataSize > 5 * 1024 * 1024) {
-            try {
-                console.log('PDF ir liels, mēģinu saspiest...');
-                const compressedDataUri = await compressPdfIfNeeded(dataUri);
-                if (compressedDataUri.length < dataSize) {
-                    finalDataUri = compressedDataUri;
-                    console.log(`PDF saspiests līdz ${formatBytes(compressedDataUri.length)}`);
-                }
-            } catch (e) {
-                console.warn('PDF saspiešana neizdevās:', e);
-            }
-        }
-
-        // Pārbaudām pieejamo vietu
-        try {
-            const availableStorage = await checkStorageQuota();
-            if (availableStorage !== null) {
-                const requiredSpace = finalDataUri.length * 1.5; // Pieļaujam 50% papildus vietu
-                if (requiredSpace > availableStorage) {
-                    throw new Error(`Nepietiek vietas ierīcē (Nepieciešams: ${formatBytes(requiredSpace)}, Pieejams: ${formatBytes(availableStorage)})`);
-                }
-            }
-        } catch (e) {
-            if (e.name === 'QuotaExceededError') {
-                throw new Error('Nepietiek vietas ierīcē. Lūdzu, izdzēsiet nevajadzīgos failus vai samaziniet attēlu skaitu.');
-            }
-            console.warn('Nevarēja pārbaudīt pieejamo vietu:', e);
-        }
-
-        // Ja ir internets, mēģinām sūtīt uzreiz
-        if (navigator.onLine) {
-            try {
-                console.log('Mēģinu sūtīt failu uzreiz...');
-                const okNow = await uploadOne(entry, finalDataUri);
-                if (okNow) {
-                    console.log('Fails veiksmīgi nosūtīts!');
-                    return { mode: 'sent' };
-                }
-            } catch (e) {
-                console.warn('Tiešā sūtīšana neizdevās:', e);
-            }
-        }
-
-        // Ja tiešā sūtīšana neizdevās vai nav interneta, saglabājam rindā
-        console.log('Saglabāju failu rindā...');
-        
-        // Pirms saglabāšanas vēlreiz pārbaudām un iztīram vecos datus ja nepieciešams
-        const currentItems = await idbAll();
-        if (currentItems.length >= 30) { // Maksimālais nesūtīto failu skaits
-            throw new Error('Sasniegts maksimālais nesūtīto failu skaits (30). Lūdzu, pagaidiet līdz būs internets vai izdzēsiet vecos failus.');
-        }
-
-        // Saglabājam rindā
-        await idbAdd({ 
-            entry, 
-            dataUri: finalDataUri, 
-            addedAt: Date.now(),
-            size: finalDataUri.length
-        });
-        console.log('Fails veiksmīgi saglabāts rindā');
-
-        return { mode: 'queued' };
-    } catch (e) {
-        console.error('Kļūda apstrādājot failu:', e);
-        
-        // Detalizēts kļūdas ziņojums
-        let errorMsg;
-        if (e.message.includes('QuotaExceededError') || e.message.includes('Nepietiek vietas')) {
-            errorMsg = 'Nepietiek vietas ierīcē. Lūdzu:\n1. Izdzēsiet vecos failus\n2. Samaziniet attēlu skaitu\n3. Samaziniet attēlu izšķirtspēju';
-        } else if (e.message.includes('maksimālais nesūtīto failu skaits')) {
-            errorMsg = e.message;
-        } else {
-            errorMsg = 'Neizdevās saglabāt failu. Lūdzu:\n1. Samaziniet attēlu skaitu\n2. Samaziniet attēlu izšķirtspēju\n3. Mēģiniet vēlreiz, kad ir internets';
-        }
-        
-        throw new Error(errorMsg);
+  // Check storage quota
+  try {
+    if ('storage' in navigator && 'estimate' in navigator.storage) {
+      const estimate = await navigator.storage.estimate();
+      const available = estimate.quota - estimate.usage;
+      if (available < dataUri.length * 1.2) {
+        throw new Error('Ikke nok lagringsplass på enheten');
+      }
     }
+  } catch (e) {
+    console.warn('Failed to check storage:', e);
+  }
+
+  // Try to send immediately if online
+  if (navigator.onLine) {
+    const ok = await uploadOne(entry, dataUri);
+    if (ok) return { mode: 'sent' };
+  }
+
+  // Otherwise queue for later
+  try {
+    // Clean up old items (over 7 days)
+    const items = await idbAll();
+    const now = Date.now();
+    for (const item of items) {
+      if (now - item.addedAt > 7 * 24 * 60 * 60 * 1000) {
+        await idbDel(item.id);
+      }
+    }
+
+    // Check queue size
+    if (items.length >= 30) {
+      throw new Error('Maksimalt antall filer i kø nådd (30). Vennligst vent til du er online.');
+    }
+
+    // Add to queue
+    await idbAdd({ entry, dataUri });
+    return { mode: 'queued' };
+  } catch (e) {
+    console.error('Failed to queue:', e);
+    throw new Error('Kunne ikke lagre filen offline. Vennligst prøv igjen når du er online.');
+  }
 }
 
 // Auto flush on page load & when back online
