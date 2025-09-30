@@ -735,28 +735,41 @@ function resetPhotos(){
 
   // Sūtīt uz Drive
   async function sendPdfDataUriToDrive(entry, dataUri){
-    if (!DRIVE_URL) throw new Error('Har ikke DRIVE_URL');
+  if (!DRIVE_URL) throw new Error('Har ikke DRIVE_URL');
 
-    const brandLabel = [entry.car.brand, entry.car.model].filter(Boolean).join('_') || 'uten_merke';
-    const fileName = `contract_${brandLabel}_${entry.date||''}.pdf`.replace(/\s+/g,'_');
-    const base64 = (dataUri.split('base64,')[1] || '');
+  const brandLabel = [entry.car.brand, entry.car.model].filter(Boolean).join('_') || 'uten_merke';
+  const fileName = `contract_${brandLabel}_${entry.date||''}.pdf`.replace(/\s+/g,'_');
+  const base64 = (dataUri.split('base64,')[1] || '');
 
-    await fetch(DRIVE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({
-        fileName,
-        pdfBase64: base64,
-        companyCode: entry.companyCode,
-        companyName: entry.companyName,
-        date: entry.date,
-        brand: entry.car.brand || "",
-        model: entry.car.model || ""
-      })
-    });
+  const resp = await fetch(DRIVE_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify({
+      fileName,
+      pdfBase64: base64,
+      companyCode: entry.companyCode,
+      companyName: entry.companyName,
+      date: entry.date,
+      brand: entry.car.brand || "",
+      model: entry.car.model || ""
+    })
+  });
 
-    return { ok:true, hintFolder: `JP-Bilplei APP/${(entry.companyCode||'other')}/${(entry.date||'')}_${brandLabel}` };
-  }
+  if (!resp.ok) throw new Error(`Upload failed ${resp.status}`);
+  return { ok:true };
+}
+
+async function idbPut(item) {
+  const db = await idbOpen();
+  const tx = db.transaction(STORE, 'readwrite');
+  const store = tx.objectStore(STORE);
+  return new Promise((resolve, reject) => {
+    const req = store.put(item);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
+  });
+}
 
   // Center popup helpers
   function showCenterSuccess(text='Sendt!', sub=''){
@@ -855,9 +868,8 @@ async function uploadOne(entry, dataUri) {
 // Prevent concurrent uploads
 let isUploading = false;
 
-// Simple queue processing with lock
+// Simple queue processing with loc
 async function flushQueue() {
-  // Check if already uploading
   if (isUploading) {
     console.log('Upload already in progress, skipping...');
     return { sent: 0, left: 0 };
@@ -870,22 +882,23 @@ async function flushQueue() {
 
     console.log(`Starting upload of ${items.length} items`);
     let sent = 0;
-    
+
     // Process each item with a small delay between attempts
     for (const item of items) {
       try {
-        if (!item.uploadAttempts) item.uploadAttempts = 0;
-        item.uploadAttempts++;
-        
+        const attempts = (item.uploadAttempts || 0) + 1;
+        item.uploadAttempts = attempts;
+        await idbPut(item); // persist attempt count so the cap sticks across runs
+
         // Skip if already tried too many times
-        if (item.uploadAttempts > 3) {
+        if (attempts > 3) {
           console.warn(`Skipping item ${item.id} - too many attempts`);
           continue;
         }
 
         // Add a small delay between uploads
         if (sent > 0) await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
         const ok = await uploadOne(item.entry, item.dataUri);
         if (ok) {
           await idbDel(item.id);
@@ -921,7 +934,7 @@ async function queueOrSend(entry, dataUri) {
   }
 
   // Try to send immediately if online
-  if (navigator.onLine) {
+  if (navigator.onLine){
     const ok = await uploadOne(entry, dataUri);
     if (ok) return { mode: 'sent' };
   }
@@ -930,18 +943,18 @@ async function queueOrSend(entry, dataUri) {
   try {
     // Clean up old items (over 7 days)
     const items = await idbAll();
-    const now = Date.now();
-    for (const item of items) {
-      if (now - item.addedAt > 7 * 24 * 60 * 60 * 1000) {
-        await idbDel(item.id);
-      }
-    }
-
-    // Check queue size
-    if (items.length >= 30) {
-      throw new Error('Maksimalt antall filer i kø nådd (30). Vennligst vent til du er online.');
-    }
-
+const now = Date.now();
+let pending = 0;
+for (const item of items) {
+  if (item.addedAt && now - item.addedAt > 7 * 24 * 60 * 60 * 1000) {
+    await idbDel(item.id);
+  } else {
+    pending++;
+  }
+}
+if (pending >= 30) {
+  throw new Error('Maksimalt antall filer i kø nådd (30). Vennligst vent til du er online.');
+}
     // Add to queue
     await idbAdd({ entry, dataUri });
     return { mode: 'queued' };
@@ -967,6 +980,7 @@ function throttledFlush() {
 
 // Auto flush on page load & when back online, but with throttling
 window.addEventListener('online', throttledFlush);
+window.addEventListener('load', throttledFlush);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && navigator.onLine) {
     throttledFlush();
@@ -1002,7 +1016,7 @@ form.addEventListener("submit", async (e) => {
       form.reset(); pins = []; renderPins(); thumbsEl.innerHTML = "";
       dateInput.value = new Date().toISOString().slice(0,10);
       refreshCompanyUI();
-      if (navigator.onLine) flushQueue();
+      if (navigator.onLine) throttledFlush();
     };
   } catch (err) {
     console.error(err);
@@ -1030,4 +1044,3 @@ if ('serviceWorker' in navigator) {
 </script>
 </body>
 </html>
- 
