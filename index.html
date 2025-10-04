@@ -18,7 +18,7 @@
   <style>
      body { font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif; margin:0; padding:16px; background:#f7f7fb; display: flex; justify-content: center;}
     .card { width: 100%; max-width: 980px; margin: 0 auto; padding: 16px; border-radius: 16px; background:#fff; box-shadow: 0 6px 24px rgba(0,0,0,0.08); }
-    html, body {margin: 0; padding: 0; max-width: 100%;overflow-x: hidden;position: relative;font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;background: #f7f7fb;}
+    html, body {margin: 0; padding: 0; max-width: 100%;overflow-x: hidden;font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;background: #f7f7fb;}
     .container {display: flex; justify-content: center; padding: 16px; box-sizing: border-box;}
     .logo-top { text-align:center; margin-bottom:12px; }
     .logo-img { width:64px; height:64px; border-radius:12px; object-fit:contain; }
@@ -125,7 +125,7 @@
           <select id="companySelect">
             <option value="" selected disabled>— Velg bedrift —</option>
             <option value="ferda">Ferda</option>
-            <option value="motoforum">Motoforum</option>
+            <option value="motorforum">Motorforum</option>
             <option value="other">Annen…</option>
           </select>
           <div id="otherCompanyBlock" class="hidden" style="margin-top:8px">
@@ -133,6 +133,24 @@
           </div>
         </div>
       </div>
+       <!-- PRIVAT: vienkārši lauki, bez dropdown -->
+<div id="privateBlock" class="hidden">
+  <div class="row">
+    <div>
+      <label>Fornavn</label>
+      <input id="firstName" placeholder="Fornavn" />
+    </div>
+    <div>
+      <label>Etternavn</label>
+      <input id="lastName" placeholder="Etternavn" />
+    </div>
+    <div>
+      <label>Telefonnummer</label>
+      <input id="phone" placeholder="Telefon" inputmode="tel" />
+    </div>
+  </div>
+</div>
+
 
       <h2>Kjøretøy</h2>
       <div class="row">
@@ -250,6 +268,10 @@ function formatBytes(bytes) {
   const companyTypeEl = document.getElementById("companyType");
   const businessBlock = document.getElementById("businessBlock");
   const companySelect = document.getElementById("companySelect");
+  const privateBlock = document.getElementById("privateBlock");
+  const firstNameEl  = document.getElementById("firstName");
+  const lastNameEl   = document.getElementById("lastName");
+  const phoneEl      = document.getElementById("phone");
   const otherCompanyBlock = document.getElementById("otherCompanyBlock");
   const otherCompany = document.getElementById("otherCompany");
   const dateInput = document.getElementById("date");
@@ -262,24 +284,87 @@ function formatBytes(bytes) {
 
   if (!dateInput.value) { dateInput.value = new Date().toISOString().slice(0,10); }
 
-  function refreshCompanyUI() {
-    const isBusiness = (companyTypeEl.value === 'business');
-    const isOther    = isBusiness && (companySelect.value === 'other');
-    businessBlock.classList.toggle('hidden', !isBusiness);
-    otherCompanyBlock.classList.toggle('hidden', !isOther);
-    companySelect.required = isBusiness;
-    otherCompany.required  = isOther;
-    if (!isBusiness) { companySelect.value = ''; otherCompany.value = ''; }
+ function refreshCompanyUI() {
+  const isBusiness = (companyTypeEl.value === 'business');
+  const isPrivate  = (companyTypeEl.value === 'private');
+  const isOther    = isBusiness && (companySelect.value === 'other');
+
+  // Rāda/slēpj blokus
+  businessBlock.classList.toggle('hidden', !isBusiness);
+  otherCompanyBlock.classList.toggle('hidden', !isOther);
+  // Ja tev HTMLā ir privātie lauki:
+  // <div id="privateBlock"> ... firstName/lastName/phone ... </div>
+  if (typeof privateBlock !== 'undefined') {
+    privateBlock.classList.toggle('hidden', !isPrivate);
   }
 
-  companySelect.addEventListener('invalid', e => e.target.setCustomValidity('Velg bedrift'));
-  companySelect.addEventListener('input',  e => e.target.setCustomValidity(''));
-  otherCompany.addEventListener('invalid', e => e.target.setCustomValidity('Skriv inn bedriftsnavn'));
-  otherCompany.addEventListener('input',  e => e.target.setCustomValidity(''));
+  // Obligātie biznesam
+  companySelect.required = isBusiness;
+  otherCompany.required  = isOther;
 
-  companyTypeEl.addEventListener('change', refreshCompanyUI);
-  companySelect.addEventListener('change', refreshCompanyUI);
-  refreshCompanyUI();
+  // Obligātie privātam (ja eksistē)
+  if (typeof firstNameEl !== 'undefined') {
+    firstNameEl.required = isPrivate;
+    lastNameEl.required  = isPrivate;
+    phoneEl.required     = isPrivate;
+  }
+
+  // Notīram nevajadzīgos laukus, kad tips mainās
+  if (!isBusiness) {
+    companySelect.value = '';
+    otherCompany.value = '';
+  }
+  if (!isPrivate && typeof firstNameEl !== 'undefined') {
+    firstNameEl.value = '';
+    lastNameEl.value  = '';
+    phoneEl.value     = '';
+  }
+
+  // Nullējam custom-validitāti, citādi rādās vecas kļūdas
+  companySelect.setCustomValidity('');
+  otherCompany.setCustomValidity('');
+  if (typeof firstNameEl !== 'undefined') {
+    firstNameEl.setCustomValidity('');
+    lastNameEl.setCustomValidity('');
+    phoneEl.setCustomValidity('');
+  }
+
+  // Fokusējam uz pirmo aktuālo lauku
+  if (isBusiness) {
+    if (!companySelect.value) companySelect.focus();
+    else if (isOther) otherCompany.focus();
+  } else if (isPrivate && typeof firstNameEl !== 'undefined') {
+    if (!firstNameEl.value) firstNameEl.focus();
+  }
+}
+
+// Validācijas ziņas (paliek kā tev bija)
+companySelect.addEventListener('invalid', e => e.target.setCustomValidity('Velg bedrift'));
+companySelect.addEventListener('input',  e => e.target.setCustomValidity(''));
+otherCompany.addEventListener('invalid', e => e.target.setCustomValidity('Skriv inn bedriftsnavn'));
+otherCompany.addEventListener('input',  e => e.target.setCustomValidity(''));
+
+// JA IR privātie lauki, ieliec arī šo:
+if (typeof firstNameEl !== 'undefined') {
+  firstNameEl.addEventListener('invalid', e => e.target.setCustomValidity('Skriv inn fornavn'));
+  firstNameEl.addEventListener('input',  e => e.target.setCustomValidity(''));
+
+  lastNameEl.addEventListener('invalid', e => e.target.setCustomValidity('Skriv inn etternavn'));
+  lastNameEl.addEventListener('input',  e => e.target.setCustomValidity(''));
+
+  phoneEl.addEventListener('input', () => {
+    const digits = (phoneEl.value || '').replace(/\D+/g,'');
+    phoneEl.setCustomValidity(digits.length >= 5 ? '' : 'Skriv inn et gyldig telefonnummer');
+  });
+}
+
+// Pārslēgšanas notikumi
+companyTypeEl.addEventListener('change', refreshCompanyUI);
+companySelect.addEventListener('change', refreshCompanyUI);
+
+// Sākotnējais stāvoklis
+refreshCompanyUI();
+
 
 let photoData = [];              
 let fileAgg; let canAgg = false;
@@ -581,26 +666,53 @@ function resetPhotos(){
 
   // Datu sagatavošana
   function buildEntry(){
-    const companyType = companyTypeEl.value;
-    let companyCode = "private";
-    let companyName = "Privat";
-    if (companyType === "business") {
-      companyCode = companySelect.value || "other";
-      companyName = companySelect.value === "other" ? (otherCompany.value || "").trim() : (companySelect.options[companySelect.selectedIndex]?.text || "").trim();
-      if (!companyName) throw new Error("Velg bedrift eller skriv inn navn.");
-    }
-    const works = Array.from(document.querySelectorAll(".work:checked")).map(cb => cb.value);
-    return {
-      date: dateInput.value,
-      companyType, companyCode, companyName,
-      car: { condition: document.getElementById("carCondition").value, brand: brandEl.value.trim(), model: modelEl.value.trim(), vinOrReg: vinEl.value.trim(), mileage: mileageEl.value || "" },
-      works,
-      workNotes: document.getElementById("workNotes").value.trim(),
-      defectsText: document.getElementById("defects").value.trim(),
-      comments: document.getElementById("comments").value.trim(),
-      photos: photoData
+  const companyType = companyTypeEl.value;
+  let companyCode = "private";
+  let companyName = "Privat";
+  let privateInfo = { firstName: "", lastName: "", phone: "" };
+
+  if (companyType === "business") {
+    companyCode = companySelect.value || "other";
+    companyName = companySelect.value === "other"
+      ? (otherCompany.value || "").trim()
+      : (companySelect.options[companySelect.selectedIndex]?.text || "").trim();
+    if (!companyName) throw new Error("Velg bedrift eller skriv inn navn.");
+  } else {
+    privateInfo = {
+      firstName: (firstNameEl.value || "").trim(),
+      lastName:  (lastNameEl.value  || "").trim(),
+      phone:     (phoneEl.value     || "").trim()
     };
+    if (!privateInfo.firstName || !privateInfo.lastName) {
+      throw new Error("Privat: Skriv inn fornavn/etternavn");
+    }
+    const digits = privateInfo.phone.replace(/\D+/g,'');
+    if (digits.length < 5) {
+      throw new Error("Privat: Skriv inn et gyldig telefonnummer");
+    }
   }
+
+  const works = Array.from(document.querySelectorAll(".work:checked")).map(cb => cb.value);
+
+  return {
+    date: dateInput.value,
+    companyType, companyCode, companyName,
+    privateInfo,
+    car: {
+      condition: document.getElementById("carCondition").value,
+      brand: brandEl.value.trim(),
+      model: modelEl.value.trim(),
+      vinOrReg: vinEl.value.trim(),
+      mileage: mileageEl.value || ""
+    },
+    works,
+    workNotes: document.getElementById("workNotes").value.trim(),
+    defectsText: document.getElementById("defects").value.trim(),
+    comments: document.getElementById("comments").value.trim(),
+    photos: photoData
+  };
+}
+
 
   const WORK_NAMES = {
     innvendig_vask: "Innvendig vask",
@@ -640,11 +752,16 @@ function resetPhotos(){
       <div class="pw-doc"><b>Dato:</b> ${entry.date||''}</div>
     </div>
 
-    <div class="sec-title">Kunde</div>
+        <div class="sec-title">Kunde</div>
     <table class="kv">
       <tr><th>Type</th><td>${entry.companyType==='business'?'Juridisk person (bedrift)':'Privat'}</td></tr>
-      <tr><th>Bedrift</th><td>${entry.companyType==='business' ? (entry.companyName||'') : '—'}</td></tr>
+      ${entry.companyType==='business'
+        ? `<tr><th>Bedrift</th><td>${entry.companyName||''}</td></tr>`
+        : `<tr><th>Fornavn, Etternavn</th><td>${(entry.privateInfo.firstName||'')} ${(entry.privateInfo.lastName||'')}</td></tr>
+           <tr><th>Telefonnummer</th><td>${entry.privateInfo.phone||''}</td></tr>`
+      }
     </table>
+
 
     <div class="sec-title">Kjøretøy</div>
     <table class="kv">
