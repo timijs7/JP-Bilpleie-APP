@@ -1038,7 +1038,30 @@ form.addEventListener("submit", async (e) => {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./service-worker.js', { scope: './' })
-      .catch(console.error);
+      .then(registration => {
+        console.log('[App] Service Worker registered successfully');
+        
+        // Check for updates periodically (every 5 minutes)
+        setInterval(() => {
+          registration.update();
+        }, 5 * 60 * 1000);
+        
+        // Listen for new service worker
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          console.log('[App] New Service Worker found');
+          
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // New service worker available, prompt user to refresh
+              console.log('[App] New version available, will update on next load');
+            }
+          });
+        });
+      })
+      .catch(err => {
+        console.error('[App] Service Worker registration failed:', err);
+      });
   });
 }
 </script>
