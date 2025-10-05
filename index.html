@@ -154,7 +154,18 @@
       <label>Telefonnummer</label>
       <input id="phone" placeholder="Telefon" inputmode="tel" />
     </div>
+    </div>
+      <label>E-post</label>
+      <input id="epost" placeholder="E-post" />
+    </div>
+      </div>
+      <label>Org nr</label>
+      <input id="orgnr" placeholder="Org nr" />
+    </div>
   </div>
+  <label>Adress</label>
+      <input id="adress" placeholder="Adress" />
+    </div>
 </div>
 
 
@@ -770,7 +781,10 @@ function resetPhotos(){
       ${entry.companyType==='business'
         ? `<tr><th>Bedrift</th><td>${entry.companyName||''}</td></tr>`
         : `<tr><th>Fornavn, Etternavn</th><td>${(entry.privateInfo.firstName||'')} ${(entry.privateInfo.lastName||'')}</td></tr>
-           <tr><th>Telefonnummer</th><td>${entry.privateInfo.phone||''}</td></tr>`
+           <tr><th>Telefonnummer</th><td>${entry.privateInfo.phone||''}</td></tr>
+          <tr><th>E-post</th><td>${entry.privateInfo.epost||''}</td></tr>
+          <tr><th>Org nr</th><td>${entry.privateInfo.orgnr||''}</td></tr>
+          <tr><th>Adress</th><td>${entry.privateInfo.adress||''}</td></tr>`
       }
     </table>
 
