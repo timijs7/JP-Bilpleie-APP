@@ -18,7 +18,7 @@
   <style>
      body { font-family: -apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif; margin:0; padding:16px; background:#f7f7fb; display: flex; justify-content: center;}
     .card { width: 100%; max-width: 980px; margin: 0 auto; padding: 16px; border-radius: 16px; background:#fff; box-shadow: 0 6px 24px rgba(0,0,0,0.08); }
-    html, body {margin: 0; padding: 0; max-width: 100%;overflow-x: hidden;position: relative;font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;background: #f7f7fb;}
+    html, body {margin: 0; padding: 0; max-width: 100%;overflow-x: hidden;font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;background: #f7f7fb;}
     .container {display: flex; justify-content: center; padding: 16px; box-sizing: border-box;}
     .logo-top { text-align:center; margin-bottom:12px; }
     .logo-img { width:64px; height:64px; border-radius:12px; object-fit:contain; }
@@ -784,7 +784,7 @@ function resetPhotos(){
 
         <div class="sec-title">Kunde</div>
     <table class="kv">
-         <tr><th>Type</th><td>${entry.companyType==='business'?'Juridisk person (bedrift)':'Privat'}</td></tr>
+      <tr><th>Type</th><td>${entry.companyType==='business'?'Juridisk person (bedrift)':'Privat'}</td></tr>
       ${entry.companyType==='business'
         ? `<tr><th>Bedrift</th><td>${entry.companyName||''}</td></tr>`
         : `<tr><th>Fornavn, Etternavn</th><td>${(entry.privateInfo.firstName||'')} ${(entry.privateInfo.lastName||'')}</td></tr>
@@ -798,15 +798,10 @@ function resetPhotos(){
 
     <div class="sec-title">Kjøretøy</div>
     <table class="kv">
-      <tr><th>Type</th><td>${entry.companyType==='business'?'Juridisk person (bedrift)':'Privat'}</td></tr>
-      ${entry.companyType==='business'
-        ? `<tr><th>Bedrift</th><td>${entry.companyName||''}</td></tr>`
-        : `<tr><th>Fornavn, Etternavn</th><td>${(entry.privateInfo.firstName||'')} ${(entry.privateInfo.lastName||'')}</td></tr>
-           <tr><th>Telefonnummer</th><td>${entry.privateInfo.phone||''}</td></tr>
-          <tr><th>E-post</th><td>${entry.privateInfo.epost||''}</td></tr>
-          <tr><th>Org nr</th><td>${entry.privateInfo.orgnr||''}</td></tr>
-          <tr><th>Adress</th><td>${entry.privateInfo.adress||''}</td></tr>`
-      }
+      <tr><th>Tilstand</th><td>${entry.car.condition==='new'?'Ny':'Brukt'}</td></tr>
+      <tr><th>Merke / Modell</th><td>${(entry.car.brand||'')+' '+(entry.car.model||'')}</td></tr>
+      <tr><th>VIN / Reg.nr.</th><td>${entry.car.vinOrReg||''}</td></tr>
+      <tr><th>Kilometerstand (km)</th><td>${entry.car.mileage||''}</td></tr>
     </table>
 
     <div class="sec-title">Utført arbeid</div>
