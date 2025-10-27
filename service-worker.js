@@ -1,5 +1,5 @@
 // Cache first for static assets, network first for other requests
-const CACHE_VERSION = '1';
+const CACHE_VERSION = '2';
 const CACHE_STATIC = `static-cache-v${CACHE_VERSION}`;
 const CACHE_DYNAMIC = `dynamic-cache-v${CACHE_VERSION}`;
 const CACHE_DOCS = 'documents-cache'; // Jauns cache priekš dokumentiem
@@ -9,6 +9,7 @@ const STATIC_ASSETS = [
   "./index.html",
   "./manifest.json",
   "./service-worker.js",
+  "./storage-manager.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
   "./icons/plan.png",
@@ -18,13 +19,21 @@ const STATIC_ASSETS = [
 
 // Install event - cache static assets
 self.addEventListener("install", (event) => {
+  console.log('[Service Worker] Installing version', CACHE_VERSION);
   event.waitUntil(
     caches.open(CACHE_STATIC)
       .then(cache => {
         console.log('[Service Worker] Precaching static assets');
         return cache.addAll(STATIC_ASSETS);
       })
-      .then(() => self.skipWaiting())
+      .then(() => {
+        console.log('[Service Worker] Static assets cached successfully');
+        return self.skipWaiting();
+      })
+      .catch(err => {
+        console.error('[Service Worker] Failed to cache static assets:', err);
+        throw err;
+      })
   );
 });
 
@@ -34,7 +43,8 @@ self.addEventListener("activate", (event) => {
     caches.keys()
       .then(keyList => {
         return Promise.all(keyList.map(key => {
-          if (key !== CACHE_STATIC && key !== CACHE_DYNAMIC) {
+          // Keep current static, dynamic and documents caches, delete everything else
+          if (key !== CACHE_STATIC && key !== CACHE_DYNAMIC && key !== CACHE_DOCS) {
             console.log('[Service Worker] Removing old cache', key);
             return caches.delete(key);
           }
@@ -46,6 +56,11 @@ self.addEventListener("activate", (event) => {
 
 // Fetch event - handle documents and static assets differently
 self.addEventListener("fetch", (event) => {
+  // Skip non-GET requests
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
   // Pārbaudam vai šis ir dokuments no mūsu cache
   if (event.request.url.includes('/documents/')) {
     event.respondWith(
@@ -55,12 +70,57 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Parastā loģika statiskajiem failiem
+  // For external CDN resources (html2canvas, jsPDF), always try cache first
+  if (event.request.url.includes('cdn.jsdelivr.net')) {
+    event.respondWith(
+      caches.match(event.request)
+        .then(cachedResponse => {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          // Try to fetch and cache
+          return fetch(event.request)
+            .then(response => {
+              if (response && response.status === 200) {
+                const responseToCache = response.clone();
+                caches.open(CACHE_STATIC)
+                  .then(cache => {
+                    cache.put(event.request, responseToCache);
+                  });
+              }
+              return response;
+            })
+            .catch(() => {
+              // If offline and not cached, return error response
+              return new Response("Resurs nav pieejams bezsaistē.", {
+                status: 503,
+                headers: { 'Content-Type': 'text/plain' }
+              });
+            });
+        })
+    );
+    return;
+  }
+
+  // Parastā loģika statiskajiem failiem - Cache First strategy
   event.respondWith(
     caches.match(event.request)
       .then(cachedResponse => {
         // Return cached response if found
         if (cachedResponse) {
+          // Optionally, fetch in background to update cache
+          fetch(event.request)
+            .then(response => {
+              if (response && response.status === 200) {
+                caches.open(CACHE_DYNAMIC)
+                  .then(cache => {
+                    cache.put(event.request, response);
+                  });
+              }
+            })
+            .catch(() => {
+              // Ignore network errors when updating cache in background
+            });
           return cachedResponse;
         }
 
@@ -136,3 +196,18 @@ async function syncDocuments() {
     console.error('Document sync failed:', e);
   }
 }
+
+// Message handler for cache management
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+  
+  if (event.data && event.data.type === 'CACHE_URLS') {
+    event.waitUntil(
+      caches.open(CACHE_STATIC)
+        .then(cache => cache.addAll(event.data.urls))
+        .catch(err => console.error('Failed to cache URLs:', err))
+    );
+  }
+});
